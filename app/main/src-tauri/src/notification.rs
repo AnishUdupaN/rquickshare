@@ -1,34 +1,15 @@
-#[cfg(target_os = "linux")]
 use notify_rust::Notification;
-#[cfg(target_os = "linux")]
 use rqs_lib::{
     channel::{ChannelAction, ChannelDirection, ChannelMessage},
     Visibility,
 };
-use tauri::AppHandle;
-#[cfg(target_os = "linux")]
-use tauri::Manager;
-#[cfg(not(target_os = "linux"))]
-use tauri_plugin_notification::NotificationExt;
+use tokio::sync::broadcast;
+use std::sync::{Arc, Mutex};
+use crate::AppState;
 
-#[cfg(target_os = "linux")]
-use crate::cmds;
-
-pub fn send_request_notification(name: String, id: String, app_handle: &AppHandle) {
-    // Is not used in macos, get rid of warning
-    let _ = id;
-
+pub fn send_request_notification(name: String, id: String, state: Arc<AppState>) {
     let body = format!("{name} want to initiate a transfer");
 
-    #[cfg(not(target_os = "linux"))]
-    let _ = app_handle
-        .notification()
-        .builder()
-        .title("RQuickShare")
-        .body(&body)
-        .show();
-
-    #[cfg(target_os = "linux")]
     match Notification::new()
         .summary("RQuickShare")
         .body(&body)
@@ -37,32 +18,23 @@ pub fn send_request_notification(name: String, id: String, app_handle: &AppHandl
         .show()
     {
         Ok(n) => {
-            let capp_handle = app_handle.clone();
-            // TODO - Meh, untracked, unwaited tasks...
-            #[cfg(target_os = "linux")]
             tokio::task::spawn(async move {
-                n.wait_for_action(|action| match action {
+                n.wait_for_action(move |action| match action {
                     "accept" => {
-                        let _ = cmds::send_to_rs(
-                            ChannelMessage {
-                                id,
-                                direction: ChannelDirection::FrontToLib,
-                                action: Some(ChannelAction::AcceptTransfer),
-                                ..Default::default()
-                            },
-                            capp_handle.state(),
-                        );
+                        let _ = state.message_sender.send(ChannelMessage {
+                            id: id.clone(),
+                            direction: ChannelDirection::FrontToLib,
+                            action: Some(ChannelAction::AcceptTransfer),
+                            ..Default::default()
+                        });
                     }
                     "reject" => {
-                        let _ = cmds::send_to_rs(
-                            ChannelMessage {
-                                id,
-                                direction: ChannelDirection::FrontToLib,
-                                action: Some(ChannelAction::RejectTransfer),
-                                ..Default::default()
-                            },
-                            capp_handle.state(),
-                        );
+                        let _ = state.message_sender.send(ChannelMessage {
+                            id: id.clone(),
+                            direction: ChannelDirection::FrontToLib,
+                            action: Some(ChannelAction::RejectTransfer),
+                            ..Default::default()
+                        });
                     }
                     _ => (),
                 });
@@ -74,18 +46,9 @@ pub fn send_request_notification(name: String, id: String, app_handle: &AppHandl
     }
 }
 
-pub fn send_temporarily_notification(app_handle: &AppHandle) {
+pub fn send_temporarily_notification(state: Arc<AppState>) {
     let body = "RQuickShare is temporarily hidden".to_string();
 
-    #[cfg(not(target_os = "linux"))]
-    let _ = app_handle
-        .notification()
-        .builder()
-        .title("RQuickShare")
-        .body(&body)
-        .show();
-
-    #[cfg(target_os = "linux")]
     match Notification::new()
         .summary("RQuickShare")
         .body(&body)
@@ -95,13 +58,10 @@ pub fn send_temporarily_notification(app_handle: &AppHandle) {
         .show()
     {
         Ok(n) => {
-            let capp_handle = app_handle.clone();
-            // TODO - Meh, untracked, unwaited tasks...
-            #[cfg(target_os = "linux")]
             tokio::task::spawn(async move {
-                n.wait_for_action(|action| match action {
+                n.wait_for_action(move |action| match action {
                     "visible" => {
-                        cmds::change_visibility(Visibility::Temporarily, capp_handle.state());
+                        state.rqs.lock().unwrap().change_visibility(Visibility::Temporarily);
                     }
                     "ignore" => {}
                     _ => (),

@@ -1,93 +1,99 @@
-use std::{path::PathBuf, sync::Arc, time::Duration};
-
+use std::{fs, path::PathBuf};
+use serde::{Deserialize, Serialize};
 use rqs_lib::Visibility;
-use tauri::{AppHandle, Emitter, Wry};
-use tauri_plugin_store::{Store, StoreExt};
+use directories::ProjectDirs;
 
-fn _get_store(app_handle: &AppHandle) -> Arc<Store<Wry>> {
-    app_handle
-        .store_builder(".settings.json")
-        .auto_save(Duration::from_millis(100))
-        .build()
-        .unwrap()
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AppSettings {
+    #[serde(default)]
+    pub autostart: bool,
+    #[serde(default)]
+    pub realclose: bool,
+    #[serde(default = "default_visibility")]
+    pub visibility: u8,
+    #[serde(default)]
+    pub startminimized: bool,
+    pub port: Option<u32>,
+    pub download_path: Option<String>,
+    pub debug_level: Option<String>,
 }
 
-pub fn init_default(app_handle: &AppHandle) {
-    let store = _get_store(app_handle);
+fn default_visibility() -> u8 {
+    Visibility::Visible as u8
+}
 
-    if !store.has("autostart") {
-        store.set("autostart", true);
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            autostart: true,
+            realclose: false,
+            visibility: Visibility::Visible as u8,
+            startminimized: false,
+            port: None,
+            download_path: None,
+            debug_level: None,
+        }
     }
+}
 
-    if !store.has("realclose") {
-        store.set("realclose", false);
+fn get_config_path() -> PathBuf {
+    let proj_dirs = ProjectDirs::from("dev", "mandre", "rquickshare").unwrap();
+    let config_dir = proj_dirs.config_dir();
+    if !config_dir.exists() {
+        let _ = fs::create_dir_all(config_dir);
     }
+    config_dir.join(".settings.json")
+}
 
-    if !store.has("visibility") {
-        store.set("visibility", Visibility::Visible as u8);
+pub fn get_settings() -> AppSettings {
+    let path = get_config_path();
+    if let Ok(content) = fs::read_to_string(&path) {
+        if let Ok(settings) = serde_json::from_str(&content) {
+            return settings;
+        }
     }
+    AppSettings::default()
+}
 
-    if !store.has("startminimized") {
-        store.set("startminimized", false);
+pub fn save_settings(settings: &AppSettings) {
+    let path = get_config_path();
+    if let Ok(json) = serde_json::to_string_pretty(settings) {
+        let _ = fs::write(path, json);
     }
 }
 
-pub fn get_realclose(app_handle: &AppHandle) -> bool {
-    let store = _get_store(app_handle);
-
-    store
-        .get("realclose")
-        .and_then(|json| json.as_bool())
-        .unwrap_or_default()
+pub fn init_default() {
+    let _ = get_settings(); // Just to load/create if needed. Or we can force save.
 }
 
-pub fn get_port(app_handle: &AppHandle) -> Option<u32> {
-    let store = _get_store(app_handle);
-
-    store
-        .get("port")
-        .and_then(|json| json.as_u64().map(|v| v as u32))
+pub fn get_realclose() -> bool {
+    get_settings().realclose
 }
 
-pub fn get_visibility(app_handle: &AppHandle) -> Visibility {
-    let store = _get_store(app_handle);
-
-    store
-        .get("visibility")
-        .and_then(|json| json.as_u64().map(Visibility::from_raw_value))
-        .unwrap_or(Visibility::Visible)
+pub fn get_port() -> Option<u32> {
+    get_settings().port
 }
 
-pub fn set_visibility(app_handle: &AppHandle, v: Visibility) -> Result<(), anyhow::Error> {
-    let store = _get_store(app_handle);
+pub fn get_visibility() -> Visibility {
+    Visibility::from_raw_value(get_settings().visibility as u64)
+}
 
-    store.set("visibility", v as u8);
-    app_handle.emit("visibility_updated", ())?;
-
+pub fn set_visibility(v: Visibility) -> Result<(), anyhow::Error> {
+    let mut settings = get_settings();
+    settings.visibility = v as u8;
+    save_settings(&settings);
+    // Note: Emit visibility_updated is handled differently now.
     Ok(())
 }
 
-pub fn get_download_path(app_handle: &AppHandle) -> Option<PathBuf> {
-    let store = _get_store(app_handle);
-
-    store
-        .get("download_path")
-        .and_then(|json| json.as_str().map(PathBuf::from))
+pub fn get_download_path() -> Option<PathBuf> {
+    get_settings().download_path.map(PathBuf::from)
 }
 
-pub fn get_logging_level(app_handle: &AppHandle) -> Option<String> {
-    let store = _get_store(app_handle);
-
-    store
-        .get("debug_level")
-        .and_then(|json| json.as_str().map(String::from))
+pub fn get_logging_level() -> Option<String> {
+    get_settings().debug_level
 }
 
-pub fn get_startminimized(app_handle: &AppHandle) -> bool {
-    let store = _get_store(app_handle);
-
-    store
-        .get("startminimized")
-        .and_then(|json| json.as_bool())
-        .unwrap_or_default()
+pub fn get_startminimized() -> bool {
+    get_settings().startminimized
 }
