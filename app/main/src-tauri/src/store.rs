@@ -66,6 +66,7 @@ pub fn init_default() {
     let _ = get_settings(); // Just to load/create if needed. Or we can force save.
 }
 
+#[allow(dead_code)]
 pub fn get_realclose() -> bool {
     get_settings().realclose
 }
@@ -94,6 +95,8 @@ pub fn get_logging_level() -> Option<String> {
     get_settings().debug_level
 }
 
+#[allow(dead_code)]
 pub fn get_startminimized() -> bool {
     get_settings().startminimized
 }
+

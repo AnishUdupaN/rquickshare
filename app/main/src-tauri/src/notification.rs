@@ -3,9 +3,9 @@ use rqs_lib::{
     channel::{ChannelAction, ChannelDirection, ChannelMessage},
     Visibility,
 };
-use tokio::sync::broadcast;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use crate::AppState;
+
 
 pub fn send_request_notification(name: String, id: String, state: Arc<AppState>) {
     let body = format!("{name} want to initiate a transfer");

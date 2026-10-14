@@ -10,12 +10,21 @@ Make sure you have the following installed:
 
 - **Rust toolchain** (stable) with Cargo: `rustup default stable`
 - **protobuf-compiler** (`protoc`) for compiling protocol buffers.
-- Linux system dependencies (for building UI and system notifications):
-  - Ubuntu/Debian:
+- Linux system dependencies (for building UI, font management, and system notifications):
+  - **Ubuntu / Debian:**
     ```bash
     sudo apt-get update
-    sudo apt-get install -y protobuf-compiler libdbus-1-dev
+    sudo apt-get install -y protobuf-compiler libdbus-1-dev libfontconfig1-dev pkg-config
     ```
+  - **Fedora / RHEL:**
+    ```bash
+    sudo dnf install -y protobuf-compiler dbus-devel fontconfig-devel pkgconf-pkg-config
+    ```
+  - **Arch Linux:**
+    ```bash
+    sudo pacman -S protobuf dbus fontconfig pkgconf
+    ```
+
 
 How to build
 --------------------------

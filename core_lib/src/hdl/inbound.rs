@@ -384,7 +384,7 @@ impl InboundRequest {
         }
 
         let sha512 = Sha512::digest(frame_data);
-        if self.state.cipher_commitment.as_ref().unwrap().commitment() != sha512.as_slice() {
+        if self.state.cipher_commitment.as_ref().unwrap().commitment() != sha512.as_ref() {
             error!("cipher_commitment isn't equals to sha512(frame_data)");
             return Err(anyhow!("UKey2: cipher_commitment != sha512"));
         }
@@ -473,7 +473,7 @@ impl InboundRequest {
         if !hmac
             .finalize()
             .into_bytes()
-            .as_slice()
+            .as_ref()
             .eq(smsg.signature.as_slice())
         {
             return Err(anyhow!("hmac!=signature"));

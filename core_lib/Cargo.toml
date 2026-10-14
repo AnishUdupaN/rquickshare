@@ -51,7 +51,3 @@ prost-build = "0.13"
 default = ["experimental"]
 experimental = ["bluer", "btleplug"]
 
-[profile.release]
-lto = true
-opt-level = 3
-codegen-units = 1

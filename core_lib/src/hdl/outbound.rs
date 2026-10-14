@@ -422,7 +422,7 @@ impl OutboundRequest {
         if !hmac
             .finalize()
             .into_bytes()
-            .as_slice()
+            .as_ref()
             .eq(smsg.signature.as_slice())
         {
             return Err(anyhow!("hmac!=signature"));

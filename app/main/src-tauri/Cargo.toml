@@ -39,7 +39,3 @@ default = ["custom-protocol"]
 # DO NOT remove this
 custom-protocol = []
 
-[profile.release]
-lto = true
-opt-level = 3
-codegen-units = 1
