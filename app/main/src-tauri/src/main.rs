@@ -77,6 +77,57 @@ impl ItemData {
 async fn main() -> Result<(), anyhow::Error> {
     set_up_logging()?;
 
+    // If DISPLAY is set on Linux, prefer X11/XWayland so that DnD (drag & drop) works,
+    // as Winit does not implement WindowEvent::DroppedFile on Wayland.
+    #[cfg(target_os = "linux")]
+    if let Ok(disp) = std::env::var("DISPLAY") {
+        if !disp.is_empty() {
+            std::env::remove_var("WAYLAND_DISPLAY");
+        }
+    }
+
+    // Single-instance IPC via Unix domain socket
+    #[cfg(unix)]
+    let socket_path = {
+        let dir = std::env::var("XDG_RUNTIME_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir());
+        dir.join("rquickshare.sock")
+    };
+
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::net::UnixStream;
+
+        let args: Vec<String> = std::env::args().skip(1).collect();
+
+        if let Ok(mut stream) = UnixStream::connect(&socket_path) {
+            info!("Existing RQuickShare instance detected. Sending command to bring to front.");
+            if args.is_empty() {
+                let _ = stream.write_all(b"show\n");
+            } else {
+                for arg in &args {
+                    let path = std::path::Path::new(arg);
+                    if let Ok(abs) = std::fs::canonicalize(path) {
+                        let _ = stream.write_all(format!("file:{}\n", abs.display()).as_bytes());
+                    }
+                }
+                let _ = stream.write_all(b"show\n");
+            }
+            let _ = stream.flush();
+            return Ok(());
+        }
+
+        // Clean up stale socket file if any
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    #[cfg(unix)]
+    let socket_path_cleanup = socket_path.clone();
+    #[cfg(unix)]
+    let single_instance_listener = std::os::unix::net::UnixListener::bind(&socket_path).ok();
+
     debug!("Starting setup of RQuickShare app");
 
     init_default();
@@ -184,6 +235,72 @@ async fn main() -> Result<(), anyhow::Error> {
     let ui = MainWindow::new().unwrap();
     let ui_weak = ui.as_weak();
     *ui_holder.lock().unwrap() = Some(ui_weak.clone());
+
+    let initial_files: Vec<String> = std::env::args()
+        .skip(1)
+        .filter_map(|arg| std::fs::canonicalize(&arg).ok())
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
+
+    if !initial_files.is_empty() {
+        let slint_files: Vec<slint::SharedString> = initial_files.into_iter().map(slint::SharedString::from).collect();
+        ui.set_has_outbound_payload(true);
+        ui.set_outbound_payload(OutboundPayload {
+            files: slint::ModelRc::new(slint::VecModel::from(slint_files)),
+        });
+        let mut rqs_lock = app_state.rqs.lock().unwrap();
+        let _ = rqs_lock.discovery(app_state.dch_sender.clone());
+    }
+
+    #[cfg(unix)]
+    if let Some(listener) = single_instance_listener {
+        let ui_weak_ipc = ui_weak.clone();
+        let state_ipc = app_state.clone();
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            for stream in listener.incoming() {
+                if let Ok(stream) = stream {
+                    let reader = BufReader::new(stream);
+                    for line in reader.lines() {
+                        if let Ok(line) = line {
+                            let line = line.trim();
+                            if line == "show" {
+                                let ui_weak = ui_weak_ipc.clone();
+                                let _ = slint::invoke_from_event_loop(move || {
+                                    if let Some(ui) = ui_weak.upgrade() {
+                                        let _ = ui.show();
+                                    }
+                                });
+                            } else if let Some(file_path) = line.strip_prefix("file:") {
+                                let file_str = file_path.to_string();
+                                let ui_weak = ui_weak_ipc.clone();
+                                let state = state_ipc.clone();
+                                let _ = slint::invoke_from_event_loop(move || {
+                                    if let Some(ui) = ui_weak.upgrade() {
+                                        let mut current_files = Vec::new();
+                                        let payload = ui.get_outbound_payload();
+                                        for i in 0..payload.files.row_count() {
+                                            if let Some(f) = payload.files.row_data(i) {
+                                                current_files.push(f);
+                                            }
+                                        }
+                                        current_files.push(slint::SharedString::from(file_str));
+                                        ui.set_has_outbound_payload(true);
+                                        ui.set_outbound_payload(OutboundPayload {
+                                            files: slint::ModelRc::new(slint::VecModel::from(current_files)),
+                                        });
+
+                                        let mut rqs_lock = state.rqs.lock().unwrap();
+                                        let _ = rqs_lock.discovery(state.dch_sender.clone());
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     // Since ModelRc is not Send, we cannot send it between threads.
     // Instead we will rebuild or manage the list inside invoke_from_event_loop.
@@ -502,16 +619,18 @@ async fn main() -> Result<(), anyhow::Error> {
                     paths.push(slint::SharedString::from(f.path().to_string_lossy().into_owned()));
                 }
 
-                let _ = slint::invoke_from_event_loop({
-                    let ui_weak = ui_weak.clone();
-                    move || {
-                        if let Some(ui) = ui_weak.upgrade() {
-                            ui.set_has_outbound_payload(true);
-                            let payload = OutboundPayload { files: slint::ModelRc::new(slint::VecModel::from(paths)) };
-                            ui.set_outbound_payload(payload);
+                if !paths.is_empty() {
+                    let _ = slint::invoke_from_event_loop({
+                        let ui_weak = ui_weak.clone();
+                        move || {
+                            if let Some(ui) = ui_weak.upgrade() {
+                                ui.set_has_outbound_payload(true);
+                                let payload = OutboundPayload { files: slint::ModelRc::new(slint::VecModel::from(paths)) };
+                                ui.set_outbound_payload(payload);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         });
     });
@@ -625,6 +744,7 @@ async fn main() -> Result<(), anyhow::Error> {
     struct RQuickShareTray {
         ui_weak: slint::Weak<MainWindow>,
         state: Arc<AppState>,
+        socket_path: std::path::PathBuf,
     }
 
     #[cfg(target_os = "linux")]
@@ -666,6 +786,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 StandardItem {
                     label: "Quit".into(),
                     activate: Box::new(|this: &mut Self| {
+                        let _ = std::fs::remove_file(&this.socket_path);
                         let state = this.state.clone();
                         tokio::task::block_in_place(|| {
                             tokio::runtime::Handle::current().block_on(async move {
@@ -687,14 +808,19 @@ async fn main() -> Result<(), anyhow::Error> {
         let tray = RQuickShareTray {
             ui_weak: ui_weak.clone(),
             state: app_state.clone(),
+            socket_path: socket_path_cleanup.clone(),
         };
         tray.spawn().ok()
     };
 
     let state_for_shutdown = app_state.clone();
+    #[cfg(unix)]
+    let socket_path_close = socket_path_cleanup.clone();
     ui.window().on_close_requested(move || {
         let realclose = store::get_realclose();
         if realclose {
+            #[cfg(unix)]
+            let _ = std::fs::remove_file(&socket_path_close);
             let state = state_for_shutdown.clone();
             tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async move {
@@ -713,5 +839,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     slint::run_event_loop_until_quit()?;
+    #[cfg(unix)]
+    let _ = std::fs::remove_file(&socket_path_cleanup);
     Ok(())
 }

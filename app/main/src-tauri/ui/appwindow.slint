@@ -24,6 +24,10 @@ export component MainWindow inherits Window {
     title: "rquickshare";
     background: root.dark_mode ? #0e1715 : #f0fdf4;
     default-font-family: "sans-serif";
+    preferred-width: 900px;
+    preferred-height: 600px;
+    min-width: 650px;
+    min-height: 450px;
 
     in property <string> hostname: "Device name";
     in property <string> version: "0.11.5";
@@ -360,124 +364,48 @@ export component MainWindow inherits Window {
                         color: root.dark_mode ? #f8fafc : #0f172a;
                     }
 
-                    // Empty state (no devices / transfers active)
-                    if root.displayed_items.length == 0 && !root.has_outbound_payload: VerticalLayout {
+                    // Empty state (no devices / transfers active): Radar pulse
+                    if root.displayed_items.length == 0: Rectangle {
                         vertical-stretch: 1;
-                        spacing: 20px;
+                        min-height: 140px;
 
-                        // Radar pulse indicator (Quick Share pulse)
                         Rectangle {
-                            vertical-stretch: 1;
-                            min-height: 140px;
-
-                            Rectangle {
-                                width: 140px;
-                                height: 140px;
-                                border-radius: 70px;
-                                background: root.dark_mode ? #22c55e10 : #16a34a0a;
-                                x: (parent.width - self.width) / 2;
-                                y: (parent.height - self.height) / 2;
-                            }
-                            Rectangle {
-                                width: 90px;
-                                height: 90px;
-                                border-radius: 45px;
-                                background: root.dark_mode ? #22c55e20 : #16a34a15;
-                                x: (parent.width - self.width) / 2;
-                                y: (parent.height - self.height) / 2;
-                            }
-                            Rectangle {
-                                width: 44px;
-                                height: 44px;
-                                border-radius: 22px;
-                                background: #22c55e;
-                                x: (parent.width - self.width) / 2;
-                                y: (parent.height - self.height) / 2;
-
-                                Rectangle {
-                                    width: 16px;
-                                    height: 16px;
-                                    border-radius: 8px;
-                                    background: #ffffff;
-                                    x: (parent.width - self.width) / 2;
-                                    y: (parent.height - self.height) / 2;
-                                }
-                            }
+                            width: 140px;
+                            height: 140px;
+                            border-radius: 70px;
+                            background: root.dark_mode ? #22c55e10 : #16a34a0a;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
                         }
-
-                        // Drop files box (ContentStatus.vue - stretches 100% width)
                         Rectangle {
-                            vertical-stretch: 0;
-                            height: 170px;
-                            border-width: 1.5px;
-                            border-color: drop_touch.has_hover ? #22c55e : (root.dark_mode ? #2c3e37 : #e2e8f0);
-                            border-radius: 18px;
-                            background: drop_touch.has_hover ? (root.dark_mode ? #1c2e27 : #f0fdf4) : (root.dark_mode ? #131c19 : transparent);
-                            animate background { duration: 150ms; }
-                            animate border-color { duration: 150ms; }
+                            width: 90px;
+                            height: 90px;
+                            border-radius: 45px;
+                            background: root.dark_mode ? #22c55e20 : #16a34a15;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                        }
+                        Rectangle {
+                            width: 44px;
+                            height: 44px;
+                            border-radius: 22px;
+                            background: #22c55e;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
 
-                            VerticalLayout {
-                                alignment: center;
-                                spacing: 10px;
-
-                                Path {
-                                    width: 32px;
-                                    height: 32px;
-                                    fill: drop_touch.has_hover ? #22c55e : (root.dark_mode ? #4ade80 : #334155);
-                                    commands: "M 11 16 V 7.85 L 8.4 10.45 L 7 9 L 12 4 L 17 9 L 15.6 10.45 L 13 7.85 V 16 Z M 6 20 Q 5.175 20 4.588 19.413 T 4 18 V 15 H 6 V 18 H 18 V 15 H 20 V 18 Q 20 18.825 19.413 19.413 T 18 20 Z";
-                                }
-
-                                Text {
-                                    text: "Drop files here to send";
-                                    font-size: 15px;
-                                    font-weight: 600;
-                                    color: root.dark_mode ? #f8fafc : #0f172a;
-                                    horizontal-alignment: center;
-                                }
-
-                                Rectangle {
-                                    background: select_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
-                                    border-radius: 12px;
-                                    height: 36px;
-                                    width: 100px;
-                                    animate background { duration: 150ms; }
-
-                                    HorizontalLayout {
-                                        alignment: center;
-                                        spacing: 6px;
-                                        padding-left: 12px;
-                                        padding-right: 12px;
-
-                                        Path {
-                                            width: 14px;
-                                            height: 14px;
-                                            fill: root.dark_mode ? #f8fafc : #0f172a;
-                                            commands: "M 11 11 H 5 V 13 H 11 V 19 H 13 V 13 H 19 V 11 H 13 V 5 H 11 Z";
-                                        }
-
-                                        Text {
-                                            text: "Select";
-                                            font-size: 13px;
-                                            font-weight: 500;
-                                            color: root.dark_mode ? #f8fafc : #0f172a;
-                                            vertical-alignment: center;
-                                        }
-                                    }
-
-                                    select_touch := TouchArea {
-                                        clicked => { root.open-file-picker(); }
-                                    }
-                                }
-                            }
-
-                            drop_touch := TouchArea {
-                                clicked => { root.open-file-picker(); }
+                            Rectangle {
+                                width: 16px;
+                                height: 16px;
+                                border-radius: 8px;
+                                background: #ffffff;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
                             }
                         }
                     }
 
                     // Displayed items list (devices & transfers)
-                    if root.displayed_items.length > 0 || root.has_outbound_payload: ScrollView {
+                    if root.displayed_items.length > 0: ScrollView {
                         vertical-stretch: 1;
 
                         VerticalLayout {
@@ -578,7 +506,7 @@ export component MainWindow inherits Window {
                                             }
 
                                             if item.endpoint: Text {
-                                                text: "Click to send";
+                                                text: root.has_outbound_payload ? "Click to send" : "Select files to send";
                                                 font-size: 12px;
                                                 color: root.dark_mode ? #4ade80 : #16a34a;
                                                 vertical-alignment: center;
@@ -739,9 +667,91 @@ export component MainWindow inherits Window {
                                 }
 
                                 if item.endpoint: TouchArea {
-                                    clicked => { root.send-info(item.id); }
+                                    clicked => {
+                                        if (root.has_outbound_payload) {
+                                            root.send-info(item.id);
+                                        } else {
+                                            root.open-file-picker();
+                                        }
+                                    }
                                 }
                             }
+                        }
+                    }
+
+                    // Drop files box (shown whenever user hasn't selected files yet)
+                    if !root.has_outbound_payload: Rectangle {
+                        vertical-stretch: 0;
+                        height: 160px;
+                        border-width: 1.5px;
+                        border-color: drop_touch.has_hover ? #22c55e : (root.dark_mode ? #2c3e37 : #e2e8f0);
+                        border-radius: 18px;
+                        background: drop_touch.has_hover ? (root.dark_mode ? #1c2e27 : #f0fdf4) : (root.dark_mode ? #131c19 : transparent);
+                        animate background { duration: 150ms; }
+                        animate border-color { duration: 150ms; }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 10px;
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Path {
+                                    width: 32px;
+                                    height: 32px;
+                                    fill: drop_touch.has_hover ? #22c55e : (root.dark_mode ? #4ade80 : #334155);
+                                    commands: "M 11 16 V 7.85 L 8.4 10.45 L 7 9 L 12 4 L 17 9 L 15.6 10.45 L 13 7.85 V 16 Z M 6 20 Q 5.175 20 4.588 19.413 T 4 18 V 15 H 6 V 18 H 18 V 15 H 20 V 18 Q 20 18.825 19.413 19.413 T 18 20 Z";
+                                }
+                            }
+
+                            Text {
+                                text: "Drop files here to send";
+                                font-size: 15px;
+                                font-weight: 600;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
+                                horizontal-alignment: center;
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    background: select_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
+                                    border-radius: 12px;
+                                    height: 36px;
+                                    width: 100px;
+                                    animate background { duration: 150ms; }
+
+                                    HorizontalLayout {
+                                        alignment: center;
+                                        spacing: 6px;
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+
+                                        Path {
+                                            width: 14px;
+                                            height: 14px;
+                                            fill: root.dark_mode ? #f8fafc : #0f172a;
+                                            commands: "M 11 11 H 5 V 13 H 11 V 19 H 13 V 13 H 19 V 11 H 13 V 5 H 11 Z";
+                                        }
+
+                                        Text {
+                                            text: "Select";
+                                            font-size: 13px;
+                                            font-weight: 500;
+                                            color: root.dark_mode ? #f8fafc : #0f172a;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+
+                                    select_touch := TouchArea {
+                                        clicked => { root.open-file-picker(); }
+                                    }
+                                }
+                            }
+                        }
+
+                        drop_touch := TouchArea {
+                            clicked => { root.open-file-picker(); }
                         }
                     }
                 }
