@@ -1,1 +1,324 @@
-export component MainWindow inherits Window { }
+import { Button, VerticalBox, HorizontalBox, ScrollView } from "std-widgets.slint";
+
+export struct OutboundPayload {
+    files: [string],
+}
+
+export struct DisplayedItem {
+    id: string,
+    name: string,
+    device_type: string, // Laptop, Phone, Tablet, etc.
+    endpoint: bool,
+    state: string, // Initial, WaitingForUserConsent, SentIntroduction, SendingFiles, ReceivingFiles, Finished, Cancelled, Rejected, Disconnected
+    pin_code: string,
+    files: [string],
+    text_description: string,
+    text_payload: string,
+    text_type: string,
+    destination: string,
+    total_bytes: int,
+    ack_bytes: int,
+}
+
+export component MainWindow inherits Window {
+    title: "rquickshare";
+    width: 900px;
+    height: 600px;
+    background: #f0fdf4; // bg-green-50
+    default-font-family: "sans-serif";
+
+    in property <string> hostname: "Device name";
+    in property <string> version: "0.0.0";
+    in property <string> new_version: "";
+    in property <string> visibility: "Visible"; // Visible, Invisible, Temporarily
+    in property <bool> has_outbound_payload: false;
+    in property <OutboundPayload> outbound_payload;
+    in property <[DisplayedItem]> displayed_items;
+    in property <bool> discovery_running: false;
+
+    callback open-url(string);
+    callback open-settings();
+    callback invert-visibility();
+    callback clear-sending();
+    callback open-file-picker();
+    callback send-info(string);
+    callback send-cmd(string, string);
+    callback remove-request(string);
+    callback write-to-clipboard(string);
+
+    VerticalLayout {
+        // Heading
+        HorizontalLayout {
+            padding: 24px;
+            alignment: space-between;
+
+            VerticalLayout {
+                Text {
+                    text: "Device name";
+                    font-size: 16px; // text-md
+                }
+                Text {
+                    text: root.hostname;
+                    font-size: 24px; // text-2xl
+                    font-weight: 500; // font-medium
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 16px;
+                alignment: center;
+
+                Rectangle {
+                    border-radius: 12px;
+                    HorizontalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+                        alignment: center;
+                        if root.new_version != "": Text { text: "Update available"; font-size: 14px; }
+                        Text { text: "v" + root.version; font-size: 14px; }
+                        if root.new_version != "": Text { text: "→"; font-size: 18px; }
+                        if root.new_version != "": Text { text: "v" + root.new_version; font-size: 14px; }
+                    }
+                    TouchArea {
+                        clicked => {
+                            if (root.new_version != "") {
+                                root.open-url("https://github.com/Martichou/rquickshare/releases/latest");
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    background: #e2e8f0; // placeholder btn
+                    border-radius: 12px;
+                    width: 48px;
+                    height: 48px;
+                    Text { text: "⚙"; horizontal-alignment: center; vertical-alignment: center; width: 100%; height: 100%; font-size: 24px; }
+                    TouchArea {
+                        clicked => { root.open-settings(); }
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            // SideMenu
+            VerticalLayout {
+                width: 288px; // w-72
+                padding: 12px;
+
+                if !root.has_outbound_payload: VerticalLayout {
+                    VerticalLayout {
+                        padding-top: 12px; padding-bottom: 8px; padding-left: 12px; padding-right: 12px;
+                        Text { text: "Visibility state"; font-size: 14px; }
+                    }
+                    Rectangle {
+                        background: #e2e8f0; // placeholder btn
+                        border-radius: 12px;
+                        HorizontalLayout {
+                            padding: 12px;
+                            alignment: space-between;
+                            Text {
+                                text: root.visibility == "Visible" ? "Always visible" : (root.visibility == "Invisible" ? "Hidden from everyone" : "Temporarily visible");
+                                font-weight: 500;
+                            }
+                            Text { text: "v"; } // placeholder icon
+                        }
+                        TouchArea { clicked => { root.invert-visibility(); } }
+                    }
+                    VerticalLayout {
+                        padding-top: 8px;
+                        padding-bottom: 12px;
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        Text {
+                            text: root.visibility == "Visible" ? "Nearby devices can share files with you, but you'll always be notified and have to approve each transfer before receiving it." : (root.visibility == "Invisible" ? "No one can see your device at the moment. However, keep in mind that if another device has saved yours before, it might still attempt to start a transfer with you.\n\nYou will get a notification when someone nearby is sharing giving you the ability to become visible for 1 minute." : "You are temporarily visible to everyone.");
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+
+                if root.has_outbound_payload: VerticalLayout {
+                    padding: 24px;
+                    alignment: space-between;
+                    VerticalLayout {
+                        Rectangle {
+                            height: 16px;
+                        }
+                        Text { text: "Sharing " + root.outbound_payload.files.length + " file(s)"; }
+                        Rectangle {
+                            height: 8px;
+                        }
+                        Rectangle {
+                            background: white;
+                            width: 128px;
+                            height: 128px;
+                            border-radius: 16px;
+                            // placeholder icon
+                        }
+                        Rectangle {
+                            height: 8px;
+                        }
+                        // We would have a loop here for files, but Slint only supports `for` in layout elements
+                        for file in root.outbound_payload.files: Text {
+                            text: file;
+                            overflow: elide;
+                        }
+
+                        Rectangle {
+                            height: 12px;
+                        }
+                        Text {
+                            text: "Make sure both devices are unlocked, close together, and have bluetooth turned on. Device you're sharing with need Quick Share turned on and visible to you.";
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                    }
+                    Rectangle {
+                        background: #e2e8f0;
+                        border-radius: 12px;
+                        HorizontalLayout {
+                            padding: 12px;
+                            Text { text: "Cancel"; horizontal-alignment: center; }
+                        }
+                        TouchArea { clicked => { root.clear-sending(); } }
+                    }
+                }
+            }
+
+            // Main Content Area
+            Rectangle {
+                background: white;
+                border-radius: 48px; // rounded-tl-[3rem]
+
+                VerticalLayout {
+                    padding: 48px; // p-12
+                    Text {
+                        text: root.displayed_items.length == 0 ? (root.has_outbound_payload ? "Ready to receive / send" : "Ready to receive") : "Nearby devices";
+                        font-weight: 500;
+                        font-size: 20px;
+                    }
+                    Rectangle {
+                        height: 16px;
+                    }
+
+                    if root.displayed_items.length == 0 && !root.has_outbound_payload: Rectangle {
+                        border-width: 1px;
+                        border-color: #e2e8f0;
+                        border-radius: 16px;
+                        VerticalLayout {
+                            padding: 24px;
+                            alignment: center;
+                            spacing: 8px;
+                            Text { text: "Drop files to send"; font-weight: 500; horizontal-alignment: center; }
+                            Rectangle {
+                                background: #e2e8f0;
+                                border-radius: 12px;
+                                HorizontalLayout {
+                                    padding: 12px;
+                                    Text { text: "Select"; horizontal-alignment: center; }
+                                }
+                                TouchArea { clicked => { root.open-file-picker(); } }
+                            }
+                        }
+                    }
+
+                    ScrollView {
+                        VerticalLayout {
+                            spacing: 16px;
+                            for item in root.displayed_items: Rectangle {
+                                background: #dcfce7; // bg-green-100
+                                border-radius: 24px; // rounded-3xl
+
+                                HorizontalLayout {
+                                    padding: 16px;
+                                    spacing: 24px;
+
+                                    // ItemSide (Icon / Progress)
+                                    Rectangle {
+                                        width: 62px;
+                                        height: 62px;
+                                        Rectangle {
+                                            width: 56px;
+                                            height: 56px;
+                                            border-radius: 28px;
+                                            background: white;
+                                            Text { text: item.device_type; horizontal-alignment: center; vertical-alignment: center; width: 100%; height: 100%; font-size: 10px; }
+                                        }
+                                    }
+
+                                    // Item Content
+                                    VerticalLayout {
+                                        alignment: item.state == "" ? center : stretch;
+                                        Text { text: item.name; font-weight: 500; font-size: 16px; }
+
+                                        if item.state == "WaitingForUserConsent": VerticalLayout {
+                                            alignment: space-between;
+                                            Rectangle { height: 16px; }
+                                            Text { text: "Wants to share " + (item.files.length > 0 ? "files" : "some file(s)."); }
+                                            Rectangle { height: 4px; }
+                                            HorizontalLayout {
+                                                alignment: end;
+                                                spacing: 16px;
+                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Accept"; } } TouchArea { clicked => { root.send-cmd(item.id, "AcceptTransfer"); } } }
+                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Decline"; } } TouchArea { clicked => { root.send-cmd(item.id, "RejectTransfer"); } } }
+                                            }
+                                        }
+
+                                        if item.state == "SentIntroduction" || item.state == "SendingFiles" || item.state == "ReceivingFiles": VerticalLayout {
+                                            Rectangle { height: 8px; }
+                                            Text { text: item.state == "SentIntroduction" || item.state == "SendingFiles" ? "Sending..." : "Receiving..."; }
+                                            for f in item.files: Text { text: f; overflow: elide; }
+                                            Rectangle { height: 4px; }
+                                            HorizontalLayout {
+                                                alignment: end;
+                                                spacing: 16px;
+                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Cancel"; } } TouchArea { clicked => { root.send-cmd(item.id, "CancelTransfer"); } } }
+                                            }
+                                        }
+
+                                        if item.state == "Finished": VerticalLayout {
+                                            Rectangle { height: 8px; }
+                                            Text { text: item.text_type != "" ? "Received text" : "Received files"; }
+                                            for f in item.files: Text { text: f; overflow: elide; }
+                                            if item.destination != "": VerticalLayout {
+                                                Rectangle { height: 8px; }
+                                                Text { text: "Saved to " + item.destination; overflow: elide; }
+                                            }
+                                            if item.text_type != "": Text { text: item.text_payload; overflow: elide; }
+
+                                            Rectangle { height: 4px; }
+                                            HorizontalLayout {
+                                                alignment: end;
+                                                spacing: 16px;
+                                                if item.destination != "" || (item.text_type == "Url" && item.text_payload != ""): Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Open"; } } TouchArea { clicked => { root.open-url(item.destination != "" ? item.destination : item.text_payload); } } }
+                                                if item.text_type != "" && item.text_payload != "": Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Copy"; } } TouchArea { clicked => { root.write-to-clipboard(item.text_payload); } } }
+                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Clear"; } } TouchArea { clicked => { root.remove-request(item.id); } } }
+                                            }
+                                        }
+
+                                        if item.state == "Cancelled" || item.state == "Rejected" || item.state == "Disconnected": VerticalLayout {
+                                            Rectangle { height: 8px; }
+                                            Text { text: item.state == "Cancelled" ? "Transfer cancelled" : (item.state == "Rejected" ? "Transfer rejected" : "Unexpected disconnection"); }
+                                            Rectangle { height: 4px; }
+                                            HorizontalLayout {
+                                                alignment: end;
+                                                spacing: 16px;
+                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Clear"; } } TouchArea { clicked => { root.remove-request(item.id); } } }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if item.endpoint: TouchArea {
+                                    clicked => { root.send-info(item.id); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
