@@ -383,10 +383,47 @@ async fn main() -> Result<(), anyhow::Error> {
         Visibility::Temporarily => "Temporarily",
     };
     ui.set_visibility(v_str.into());
+    ui.set_version(env!("CARGO_PKG_VERSION").into());
+    ui.set_autostart(store::get_autostart());
+    ui.set_realclose(store::get_realclose());
+    ui.set_startminimized(store::get_startminimized());
+    if let Some(path) = store::get_download_path() {
+        ui.set_download_path(path.to_string_lossy().to_string().into());
+    }
 
     if let Ok(hostname) = gethostname::gethostname().into_string() {
         ui.set_hostname(hostname.into());
     }
+
+    ui.on_set_autostart(|val| {
+        store::set_autostart(val);
+    });
+
+    ui.on_set_realclose(|val| {
+        store::set_realclose(val);
+    });
+
+    ui.on_set_startminimized(|val| {
+        store::set_startminimized(val);
+    });
+
+    let ui_weak_download = ui_weak.clone();
+    ui.on_select_download_path(move || {
+        let ui_weak = ui_weak_download.clone();
+        tokio::spawn(async move {
+            let folder = rfd::AsyncFileDialog::new().pick_folder().await;
+            if let Some(folder) = folder {
+                let path_str = folder.path().to_string_lossy().to_string();
+                store::set_download_path(Some(path_str.clone()));
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak.upgrade() {
+                        ui.set_download_path(path_str.into());
+                    }
+                });
+            }
+        });
+    });
+
 
     let ui_weak_picker = ui_weak.clone();
     ui.on_open_file_picker(move || {

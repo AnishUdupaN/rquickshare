@@ -95,8 +95,37 @@ pub fn get_logging_level() -> Option<String> {
     get_settings().debug_level
 }
 
-#[allow(dead_code)]
+pub fn get_autostart() -> bool {
+    get_settings().autostart
+}
+
 pub fn get_startminimized() -> bool {
     get_settings().startminimized
 }
+
+pub fn set_autostart(autostart: bool) {
+
+    let mut settings = get_settings();
+    settings.autostart = autostart;
+    save_settings(&settings);
+}
+
+pub fn set_realclose(realclose: bool) {
+    let mut settings = get_settings();
+    settings.realclose = realclose;
+    save_settings(&settings);
+}
+
+pub fn set_startminimized(startminimized: bool) {
+    let mut settings = get_settings();
+    settings.startminimized = startminimized;
+    save_settings(&settings);
+}
+
+pub fn set_download_path(path: Option<String>) {
+    let mut settings = get_settings();
+    settings.download_path = path;
+    save_settings(&settings);
+}
+
 
