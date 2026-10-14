@@ -1,51 +1,71 @@
 The project is divided into two parts:
 
 - **core_lib:** This is a Rust library that encompasses all the logic necessary for discovering, connecting to, and transferring files to QuickShare-compatible clients.
-- **app/main:** A Tauri application that utilizes core_lib to handle incoming requests and initiate outgoing ones.
+- **app/main:** A native Rust desktop application built with [Slint UI](https://slint.dev/) that utilizes `core_lib` to handle incoming requests and initiate outgoing transfers.
+
+Prerequisites
+--------------------------
+
+Make sure you have the following installed:
+
+- **Rust toolchain** (stable) with Cargo: `rustup default stable`
+- **protobuf-compiler** (`protoc`) for compiling protocol buffers.
+- Linux system dependencies (for building UI and system notifications):
+  - Ubuntu/Debian:
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y protobuf-compiler libdbus-1-dev
+    ```
 
 How to build
 --------------------------
 
-### core_lib
+Because the repository is organized as a Cargo workspace, building the entire project (both `core_lib` and the desktop UI application `rquickshare`) can be done directly with `cargo` from the project root.
 
-Building the core_lib is straightforward because it is a basic Rust project.
+### Build everything (Whole Project)
 
-Install `protobuf-compiler` system package, and then simply run `cargo build` or `cargo build --release` from `core_lib` folder.
+Run the following from the root of the repository:
 
-### app/main
+- **Debug build:**
+  ```bash
+  cargo build
+  ```
 
-The app/main is developed as a Tauri application. For package management, pnpm is recommended (though npm and others may also work, pnpm is preferred for this project).
+- **Release build:**
+  ```bash
+  cargo build --release
+  ```
 
-(all commands are run inside the `app/main` folder)
-
-First, install the necessary dependencies:
-
+This automatically compiles both the backend (`core_lib`) and the frontend Slint UI application (`rquickshare`).
+The compiled application binary will be located at:
 ```
-pnpm install
-```
-
-- To run the debug version:
-
-```
-pnpm dev
+target/release/rquickshare
 ```
 
-- To build a release package (.deb & .AppImage & .rpm & .dmg (only on macos)):
+### Run the App
 
-```
-pnpm build
-```
+To run the desktop application directly:
 
-For more detailed information on building the app/main and understanding any potential limitations, it’s advised to consult the [Tauri documentation](https://v2.tauri.app/start).
-
-### app/main
-
-Everything is the same as the app/main one, except the output of the build :)
-
-- To build a release package (.deb & .AppImage):
-
-```
-pnpm build
+```bash
+cargo run -p rquickshare
 ```
 
-For more detailed information on building the app/main and understanding any potential limitations, it’s advised to consult the [Tauri documentation](https://tauri.app/v1/guides/building/linux).
+### Build individual packages (Optional)
+
+You can also target specific members of the workspace:
+
+- **core_lib only:**
+  ```bash
+  cargo build -p rqs_lib
+  # or from core_lib directory:
+  cd core_lib && cargo build
+  ```
+
+- **Slint desktop app only:**
+  ```bash
+  cargo build -p rquickshare
+  ```
+
+For Slint backend configuration, rendering options (such as Qt, Skia, or FemtoVG/software renderers), and platform notes, refer to the [Slint Documentation](https://slint.dev/docs).
+
+

@@ -181,17 +181,17 @@ find $HOME -name ".settings.json"
 
 By default the port is random (the OS will decide).
 
-### The app opens but I just get a blank window or cannot run it.
+### The app opens but I just get a blank window or rendering issues
 
-This happens for some users running Linux + NVIDIA cards.
+If you encounter rendering issues with the Slint GUI (especially on certain Linux GPU configurations):
 
-The workaround is to start RQuickShare with an env variable defined as follows:
+Slint supports multiple rendering backends. You can configure the backend via the `SLINT_BACKEND` environment variable (e.g. `winit-femtovg`, `winit-skia`, or `winit-software`):
 
 ```bash
-env WEBKIT_DISABLE_COMPOSITING_MODE=1 rquickshare
+env SLINT_BACKEND=winit-software rquickshare
 ```
 
-Alternatively, you may try the `legacy` variant.
+For more details, see the [Slint Backend Documentation](https://slint.dev/docs/rust/slint/platform/index.html).
 
 WIP Notes
 --------------------------
