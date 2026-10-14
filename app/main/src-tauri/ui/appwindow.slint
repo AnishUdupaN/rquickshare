@@ -1,4 +1,4 @@
-import { Button, VerticalBox, HorizontalBox, ScrollView } from "std-widgets.slint";
+import { Button, ScrollView } from "std-widgets.slint";
 
 export struct OutboundPayload {
     files: [string],
@@ -20,11 +20,102 @@ export struct DisplayedItem {
     ack_bytes: int,
 }
 
+global Theme {
+    in property <bool> dark_mode: false;
+
+    out property <color> window_bg: dark_mode ? #121816 : #f0fdf4;
+    out property <color> card_bg: dark_mode ? #1e2926 : #ffffff;
+    out property <color> card_border: dark_mode ? #2d3f3a : #e2e8f0;
+
+    out property <color> text_primary: dark_mode ? #f1f5f9 : #0f172a;
+    out property <color> text_secondary: dark_mode ? #94a3b8 : #475569;
+    out property <color> text_muted: dark_mode ? #64748b : #64748b;
+
+    out property <color> btn_bg: dark_mode ? #2a3934 : #e2e8f0;
+    out property <color> btn_bg_hover: dark_mode ? #374a44 : #cbd5e1;
+    out property <color> btn_text: dark_mode ? #f8fafc : #0f172a;
+
+    out property <color> item_bg: dark_mode ? #16382b : #dcfce7;
+    out property <color> item_bg_hover: dark_mode ? #1c4737 : #bbf7d0;
+    out property <color> item_text: dark_mode ? #f0fdf4 : #052e16;
+    out property <color> item_subtext: dark_mode ? #a7f3d0 : #166534;
+
+    out property <color> item_icon_bg: dark_mode ? #234d3b : #ffffff;
+    out property <color> item_icon_text: dark_mode ? #4ade80 : #16a34a;
+
+    out property <color> action_btn_bg: dark_mode ? #264a3a : #ffffff;
+    out property <color> action_btn_text: dark_mode ? #f8fafc : #0f172a;
+
+    out property <color> progress_track: dark_mode ? #2d3f3a : #e2e8f0;
+    out property <color> progress_fill: dark_mode ? #4ade80 : #22c55e;
+}
+
+component IconButton inherits Rectangle {
+    in property <string> text;
+    in property <length> icon_size: 20px;
+    callback clicked();
+
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: touch.has_hover ? Theme.btn_bg_hover : Theme.btn_bg;
+    animate background { duration: 150ms; }
+
+    Text {
+        text: root.text;
+        font-size: root.icon_size;
+        color: Theme.btn_text;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component PillButton inherits Rectangle {
+    in property <string> text;
+    in property <color> text_color: Theme.btn_text;
+    in property <color> custom_bg: Theme.btn_bg;
+    in property <color> custom_bg_hover: Theme.btn_bg_hover;
+    callback clicked();
+
+    border-radius: 12px;
+    background: touch.has_hover ? root.custom_bg_hover : root.custom_bg;
+    animate background { duration: 150ms; }
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        alignment: center;
+
+        Text {
+            text: root.text;
+            color: root.text_color;
+            font-weight: 500;
+            font-size: 14px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
 export component MainWindow inherits Window {
     title: "rquickshare";
     width: 900px;
     height: 600px;
-    background: #f0fdf4; // bg-green-50
+    min-width: 720px;
+    min-height: 500px;
+    background: Theme.window_bg;
     default-font-family: "sans-serif";
 
     in property <string> hostname: "Device name";
@@ -35,6 +126,9 @@ export component MainWindow inherits Window {
     in property <OutboundPayload> outbound_payload;
     in property <[DisplayedItem]> displayed_items;
     in property <bool> discovery_running: false;
+
+    in-out property <bool> dark_mode <=> Theme.dark_mode;
+    in-out property <bool> settings_open: false;
 
     callback open-url(string);
     callback open-settings();
@@ -47,39 +141,70 @@ export component MainWindow inherits Window {
     callback write-to-clipboard(string);
 
     VerticalLayout {
-        // Heading
+        // --- Header ---
         HorizontalLayout {
-            padding: 24px;
+            padding-left: 28px;
+            padding-right: 28px;
+            padding-top: 20px;
+            padding-bottom: 16px;
             alignment: space-between;
 
             VerticalLayout {
+                spacing: 2px;
+                alignment: center;
+
                 Text {
                     text: "Device name";
-                    font-size: 16px; // text-md
+                    font-size: 13px;
+                    font-weight: 500;
+                    color: Theme.text_secondary;
                 }
                 Text {
                     text: root.hostname;
-                    font-size: 24px; // text-2xl
-                    font-weight: 500; // font-medium
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: Theme.text_primary;
                 }
             }
 
             HorizontalLayout {
-                spacing: 16px;
+                spacing: 12px;
                 alignment: center;
 
+                // Version / Update pill
                 Rectangle {
                     border-radius: 12px;
+                    background: touch_ver.has_hover && root.new_version != "" ? Theme.btn_bg_hover : transparent;
+                    animate background { duration: 150ms; }
+
                     HorizontalLayout {
-                        padding: 12px;
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        padding-top: 8px;
+                        padding-bottom: 8px;
                         spacing: 8px;
                         alignment: center;
-                        if root.new_version != "": Text { text: "Update available"; font-size: 14px; }
-                        Text { text: "v" + root.version; font-size: 14px; }
-                        if root.new_version != "": Text { text: "→"; font-size: 18px; }
-                        if root.new_version != "": Text { text: "v" + root.new_version; font-size: 14px; }
+
+                        if root.new_version != "": Text {
+                            text: "Update available";
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: #10b981;
+                        }
+                        Text {
+                            text: "v" + root.version;
+                            font-size: 13px;
+                            color: Theme.text_secondary;
+                        }
+                        if root.new_version != "": Text {
+                            text: "→ v" + root.new_version;
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: #10b981;
+                        }
                     }
-                    TouchArea {
+
+                    touch_ver := TouchArea {
                         clicked => {
                             if (root.new_version != "") {
                                 root.open-url("https://github.com/Martichou/rquickshare/releases/latest");
@@ -88,233 +213,519 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                Rectangle {
-                    background: #e2e8f0; // placeholder btn
-                    border-radius: 12px;
-                    width: 48px;
-                    height: 48px;
-                    Text { text: "⚙"; horizontal-alignment: center; vertical-alignment: center; width: 100%; height: 100%; font-size: 24px; }
-                    TouchArea {
-                        clicked => { root.open-settings(); }
+                // Dark/Light theme toggle button
+                IconButton {
+                    text: Theme.dark_mode ? "☀" : "🌙";
+                    icon_size: 18px;
+                    clicked => {
+                        Theme.dark_mode = !Theme.dark_mode;
+                    }
+                }
+
+                // Settings button
+                IconButton {
+                    text: "⚙";
+                    icon_size: 20px;
+                    clicked => {
+                        root.settings_open = true;
                     }
                 }
             }
         }
 
+        // --- Body (Sidebar + Main Content Area) ---
         HorizontalLayout {
-            // SideMenu
+            spacing: 0px;
+
+            // Sidebar
             VerticalLayout {
-                width: 288px; // w-72
-                padding: 12px;
+                width: 290px;
+                padding-left: 24px;
+                padding-right: 24px;
+                padding-top: 12px;
+                padding-bottom: 24px;
 
                 if !root.has_outbound_payload: VerticalLayout {
-                    VerticalLayout {
-                        padding-top: 12px; padding-bottom: 8px; padding-left: 12px; padding-right: 12px;
-                        Text { text: "Visibility state"; font-size: 14px; }
+                    spacing: 12px;
+
+                    Text {
+                        text: "Visibility state";
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: Theme.text_secondary;
                     }
+
                     Rectangle {
-                        background: #e2e8f0; // placeholder btn
-                        border-radius: 12px;
+                        background: touch_vis.has_hover ? Theme.btn_bg_hover : Theme.btn_bg;
+                        border-radius: 14px;
+                        animate background { duration: 150ms; }
+
                         HorizontalLayout {
-                            padding: 12px;
+                            padding: 14px;
                             alignment: space-between;
+
                             Text {
                                 text: root.visibility == "Visible" ? "Always visible" : (root.visibility == "Invisible" ? "Hidden from everyone" : "Temporarily visible");
-                                font-weight: 500;
+                                font-weight: 600;
+                                font-size: 15px;
+                                color: Theme.text_primary;
                             }
-                            Text { text: "v"; } // placeholder icon
+                            Text {
+                                text: "⇄";
+                                font-size: 16px;
+                                color: Theme.text_secondary;
+                            }
                         }
-                        TouchArea { clicked => { root.invert-visibility(); } }
+
+                        touch_vis := TouchArea {
+                            clicked => { root.invert-visibility(); }
+                        }
                     }
-                    VerticalLayout {
-                        padding-top: 8px;
-                        padding-bottom: 12px;
-                        padding-left: 12px;
-                        padding-right: 12px;
-                        Text {
-                            text: root.visibility == "Visible" ? "Nearby devices can share files with you, but you'll always be notified and have to approve each transfer before receiving it." : (root.visibility == "Invisible" ? "No one can see your device at the moment. However, keep in mind that if another device has saved yours before, it might still attempt to start a transfer with you.\n\nYou will get a notification when someone nearby is sharing giving you the ability to become visible for 1 minute." : "You are temporarily visible to everyone.");
-                            font-size: 12px;
-                            wrap: word-wrap;
-                        }
+
+                    Text {
+                        text: root.visibility == "Visible" ? "Nearby devices can share files with you. You will always be notified and have to approve each transfer before receiving." : (root.visibility == "Invisible" ? "No one can see your device right now. If another device previously saved yours, it might still attempt a transfer.\n\nYou will get a notification when someone nearby is sharing to become visible for 1 minute." : "You are temporarily visible to everyone nearby.");
+                        font-size: 12px;
+                        color: Theme.text_secondary;
+                        wrap: word-wrap;
                     }
                 }
 
                 if root.has_outbound_payload: VerticalLayout {
-                    padding: 24px;
+                    spacing: 16px;
                     alignment: space-between;
+
                     VerticalLayout {
-                        Rectangle {
-                            height: 16px;
-                        }
-                        Text { text: "Sharing " + root.outbound_payload.files.length + " file(s)"; }
-                        Rectangle {
-                            height: 8px;
-                        }
-                        Rectangle {
-                            background: white;
-                            width: 128px;
-                            height: 128px;
-                            border-radius: 16px;
-                            // placeholder icon
-                        }
-                        Rectangle {
-                            height: 8px;
-                        }
-                        // We would have a loop here for files, but Slint only supports `for` in layout elements
-                        for file in root.outbound_payload.files: Text {
-                            text: file;
-                            overflow: elide;
+                        spacing: 12px;
+
+                        Text {
+                            text: "Sharing " + root.outbound_payload.files.length + " file(s)";
+                            font-size: 15px;
+                            font-weight: 600;
+                            color: Theme.text_primary;
                         }
 
                         Rectangle {
-                            height: 12px;
+                            background: Theme.card_bg;
+                            border-width: 1px;
+                            border-color: Theme.card_border;
+                            border-radius: 16px;
+                            width: 110px;
+                            height: 110px;
+
+                            Text {
+                                text: "📁";
+                                font-size: 42px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
                         }
+
+                        for file in root.outbound_payload.files: Text {
+                            text: file;
+                            font-size: 13px;
+                            color: Theme.text_primary;
+                            overflow: elide;
+                        }
+
                         Text {
-                            text: "Make sure both devices are unlocked, close together, and have bluetooth turned on. Device you're sharing with need Quick Share turned on and visible to you.";
+                            text: "Make sure both devices are unlocked, close together, and have Bluetooth and Wi-Fi turned on. The receiver must have Quick Share turned on.";
                             font-size: 12px;
+                            color: Theme.text_secondary;
                             wrap: word-wrap;
                         }
                     }
-                    Rectangle {
-                        background: #e2e8f0;
-                        border-radius: 12px;
-                        HorizontalLayout {
-                            padding: 12px;
-                            Text { text: "Cancel"; horizontal-alignment: center; }
-                        }
-                        TouchArea { clicked => { root.clear-sending(); } }
+
+                    PillButton {
+                        text: "Cancel";
+                        clicked => { root.clear-sending(); }
                     }
                 }
             }
 
             // Main Content Area
             Rectangle {
-                background: white;
-                border-radius: 48px; // rounded-tl-[3rem]
+                background: Theme.card_bg;
+                border-top-left-radius: 36px;
+                border-width: 1px;
+                border-color: Theme.card_border;
+                clip: true;
 
                 VerticalLayout {
-                    padding: 48px; // p-12
+                    padding: 32px;
+                    spacing: 20px;
+
+                    // Header title
                     Text {
-                        text: root.displayed_items.length == 0 ? (root.has_outbound_payload ? "Ready to receive / send" : "Ready to receive") : "Nearby devices";
-                        font-weight: 500;
-                        font-size: 20px;
-                    }
-                    Rectangle {
-                        height: 16px;
+                        text: root.displayed_items.length == 0 ? (root.has_outbound_payload ? "Ready to send" : "Ready to receive") : "Nearby devices";
+                        font-weight: 700;
+                        font-size: 22px;
+                        color: Theme.text_primary;
                     }
 
+                    // Empty state (drop/picker)
                     if root.displayed_items.length == 0 && !root.has_outbound_payload: Rectangle {
-                        border-width: 1px;
-                        border-color: #e2e8f0;
-                        border-radius: 16px;
+                        border-width: 2px;
+                        border-color: Theme.card_border;
+                        border-radius: 20px;
+                        background: touch_drop.has_hover ? Theme.btn_bg : transparent;
+                        animate background { duration: 150ms; }
+
                         VerticalLayout {
-                            padding: 24px;
+                            padding: 36px;
                             alignment: center;
-                            spacing: 8px;
-                            Text { text: "Drop files to send"; font-weight: 500; horizontal-alignment: center; }
-                            Rectangle {
-                                background: #e2e8f0;
-                                border-radius: 12px;
-                                HorizontalLayout {
-                                    padding: 12px;
-                                    Text { text: "Select"; horizontal-alignment: center; }
-                                }
-                                TouchArea { clicked => { root.open-file-picker(); } }
+                            spacing: 14px;
+
+                            Text {
+                                text: "📤";
+                                font-size: 40px;
+                                horizontal-alignment: center;
                             }
+
+                            Text {
+                                text: "Drop files to send or click Select";
+                                font-weight: 600;
+                                font-size: 16px;
+                                color: Theme.text_primary;
+                                horizontal-alignment: center;
+                            }
+
+                            Text {
+                                text: "Quick Share compatible devices on your local Wi-Fi will be detected automatically.";
+                                font-size: 13px;
+                                color: Theme.text_secondary;
+                                horizontal-alignment: center;
+                                wrap: word-wrap;
+                            }
+
+                            Rectangle { height: 4px; }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                PillButton {
+                                    text: "Select Files";
+                                    custom_bg: Theme.btn_bg;
+                                    custom_bg_hover: Theme.btn_bg_hover;
+                                    clicked => { root.open-file-picker(); }
+                                }
+                            }
+                        }
+
+                        touch_drop := TouchArea {
+                            clicked => { root.open-file-picker(); }
                         }
                     }
 
+                    // Active device transfers / nearby devices list
                     ScrollView {
                         VerticalLayout {
-                            spacing: 16px;
+                            spacing: 14px;
+
                             for item in root.displayed_items: Rectangle {
-                                background: #dcfce7; // bg-green-100
-                                border-radius: 24px; // rounded-3xl
+                                background: touch_item.has_hover && item.endpoint ? Theme.item_bg_hover : Theme.item_bg;
+                                border-radius: 20px;
+                                animate background { duration: 150ms; }
 
                                 HorizontalLayout {
-                                    padding: 16px;
-                                    spacing: 24px;
+                                    padding: 18px;
+                                    spacing: 18px;
+                                    alignment: center;
 
-                                    // ItemSide (Icon / Progress)
-                                    Rectangle {
-                                        width: 62px;
-                                        height: 62px;
+                                    // Device icon & Pin
+                                    VerticalLayout {
+                                        alignment: center;
+                                        spacing: 6px;
+
                                         Rectangle {
-                                            width: 56px;
-                                            height: 56px;
-                                            border-radius: 28px;
-                                            background: white;
-                                            Text { text: item.device_type; horizontal-alignment: center; vertical-alignment: center; width: 100%; height: 100%; font-size: 10px; }
+                                            width: 54px;
+                                            height: 54px;
+                                            border-radius: 27px;
+                                            background: Theme.item_icon_bg;
+
+                                            Text {
+                                                text: item.device_type == "Phone" ? "📱" : (item.device_type == "Tablet" ? "📟" : (item.device_type == "Laptop" ? "💻" : "🖥"));
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
+                                                width: 100%;
+                                                height: 100%;
+                                                font-size: 24px;
+                                            }
+                                        }
+
+                                        if item.pin_code != "": Text {
+                                            text: "PIN: " + item.pin_code;
+                                            font-size: 11px;
+                                            font-weight: 700;
+                                            color: Theme.item_subtext;
+                                            horizontal-alignment: center;
                                         }
                                     }
 
-                                    // Item Content
+                                    // Content details
                                     VerticalLayout {
-                                        alignment: item.state == "" ? center : stretch;
-                                        Text { text: item.name; font-weight: 500; font-size: 16px; }
+                                        alignment: center;
+                                        spacing: 4px;
+
+                                        Text {
+                                            text: item.name;
+                                            font-weight: 700;
+                                            font-size: 17px;
+                                            color: Theme.item_text;
+                                        }
+
+                                        if item.endpoint && item.state == "": Text {
+                                            text: "Click to send selected files";
+                                            font-size: 13px;
+                                            color: Theme.item_subtext;
+                                        }
 
                                         if item.state == "WaitingForUserConsent": VerticalLayout {
-                                            alignment: space-between;
-                                            Rectangle { height: 16px; }
-                                            Text { text: "Wants to share " + (item.files.length > 0 ? "files" : "some file(s)."); }
-                                            Rectangle { height: 4px; }
+                                            spacing: 8px;
+
+                                            Text {
+                                                text: "Wants to share " + (item.files.length > 0 ? (item.files.length + " file(s)") : "files");
+                                                font-size: 14px;
+                                                color: Theme.item_text;
+                                            }
+
                                             HorizontalLayout {
-                                                alignment: end;
-                                                spacing: 16px;
-                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Accept"; } } TouchArea { clicked => { root.send-cmd(item.id, "AcceptTransfer"); } } }
-                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Decline"; } } TouchArea { clicked => { root.send-cmd(item.id, "RejectTransfer"); } } }
+                                                spacing: 10px;
+
+                                                PillButton {
+                                                    text: "Accept";
+                                                    custom_bg: Theme.action_btn_bg;
+                                                    text_color: #16a34a;
+                                                    clicked => { root.send-cmd(item.id, "AcceptTransfer"); }
+                                                }
+                                                PillButton {
+                                                    text: "Decline";
+                                                    custom_bg: Theme.action_btn_bg;
+                                                    text_color: #dc2626;
+                                                    clicked => { root.send-cmd(item.id, "RejectTransfer"); }
+                                                }
                                             }
                                         }
 
                                         if item.state == "SentIntroduction" || item.state == "SendingFiles" || item.state == "ReceivingFiles": VerticalLayout {
-                                            Rectangle { height: 8px; }
-                                            Text { text: item.state == "SentIntroduction" || item.state == "SendingFiles" ? "Sending..." : "Receiving..."; }
-                                            for f in item.files: Text { text: f; overflow: elide; }
-                                            Rectangle { height: 4px; }
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: item.state == "ReceivingFiles" ? "Receiving files..." : "Sending files...";
+                                                font-size: 13px;
+                                                font-weight: 600;
+                                                color: Theme.item_text;
+                                            }
+
+                                            for f in item.files: Text {
+                                                text: f;
+                                                font-size: 12px;
+                                                color: Theme.item_subtext;
+                                                overflow: elide;
+                                            }
+
                                             HorizontalLayout {
-                                                alignment: end;
-                                                spacing: 16px;
-                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Cancel"; } } TouchArea { clicked => { root.send-cmd(item.id, "CancelTransfer"); } } }
+                                                PillButton {
+                                                    text: "Cancel";
+                                                    custom_bg: Theme.action_btn_bg;
+                                                    text_color: #dc2626;
+                                                    clicked => { root.send-cmd(item.id, "CancelTransfer"); }
+                                                }
                                             }
                                         }
 
                                         if item.state == "Finished": VerticalLayout {
-                                            Rectangle { height: 8px; }
-                                            Text { text: item.text_type != "" ? "Received text" : "Received files"; }
-                                            for f in item.files: Text { text: f; overflow: elide; }
-                                            if item.destination != "": VerticalLayout {
-                                                Rectangle { height: 8px; }
-                                                Text { text: "Saved to " + item.destination; overflow: elide; }
-                                            }
-                                            if item.text_type != "": Text { text: item.text_payload; overflow: elide; }
+                                            spacing: 6px;
 
-                                            Rectangle { height: 4px; }
+                                            Text {
+                                                text: item.text_type != "" ? "Received text" : "Transfer completed";
+                                                font-size: 13px;
+                                                font-weight: 600;
+                                                color: #16a34a;
+                                            }
+
+                                            for f in item.files: Text {
+                                                text: f;
+                                                font-size: 12px;
+                                                color: Theme.item_subtext;
+                                                overflow: elide;
+                                            }
+
+                                            if item.destination != "": Text {
+                                                text: "Saved to: " + item.destination;
+                                                font-size: 12px;
+                                                color: Theme.item_subtext;
+                                                overflow: elide;
+                                            }
+
+                                            if item.text_payload != "": Text {
+                                                text: item.text_payload;
+                                                font-size: 12px;
+                                                color: Theme.item_text;
+                                                overflow: elide;
+                                            }
+
                                             HorizontalLayout {
-                                                alignment: end;
-                                                spacing: 16px;
-                                                if item.destination != "" || (item.text_type == "Url" && item.text_payload != ""): Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Open"; } } TouchArea { clicked => { root.open-url(item.destination != "" ? item.destination : item.text_payload); } } }
-                                                if item.text_type != "" && item.text_payload != "": Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Copy"; } } TouchArea { clicked => { root.write-to-clipboard(item.text_payload); } } }
-                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Clear"; } } TouchArea { clicked => { root.remove-request(item.id); } } }
+                                                spacing: 8px;
+
+                                                if item.destination != "" || (item.text_type == "Url" && item.text_payload != ""): PillButton {
+                                                    text: "Open";
+                                                    custom_bg: Theme.action_btn_bg;
+                                                    clicked => { root.open-url(item.destination != "" ? item.destination : item.text_payload); }
+                                                }
+
+                                                if item.text_payload != "": PillButton {
+                                                    text: "Copy";
+                                                    custom_bg: Theme.action_btn_bg;
+                                                    clicked => { root.write-to-clipboard(item.text_payload); }
+                                                }
+
+                                                PillButton {
+                                                    text: "Clear";
+                                                    custom_bg: Theme.action_btn_bg;
+                                                    clicked => { root.remove-request(item.id); }
+                                                }
                                             }
                                         }
 
                                         if item.state == "Cancelled" || item.state == "Rejected" || item.state == "Disconnected": VerticalLayout {
-                                            Rectangle { height: 8px; }
-                                            Text { text: item.state == "Cancelled" ? "Transfer cancelled" : (item.state == "Rejected" ? "Transfer rejected" : "Unexpected disconnection"); }
-                                            Rectangle { height: 4px; }
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: item.state == "Cancelled" ? "Transfer cancelled" : (item.state == "Rejected" ? "Transfer rejected" : "Disconnected unexpectedly");
+                                                font-size: 13px;
+                                                font-weight: 600;
+                                                color: #dc2626;
+                                            }
+
                                             HorizontalLayout {
-                                                alignment: end;
-                                                spacing: 16px;
-                                                Rectangle { background: white; border-radius: 12px; HorizontalLayout { padding-left: 12px; padding-right: 12px; padding-top: 6px; padding-bottom: 6px; Text { text: "Clear"; } } TouchArea { clicked => { root.remove-request(item.id); } } }
+                                                PillButton {
+                                                    text: "Clear";
+                                                    custom_bg: Theme.action_btn_bg;
+                                                    clicked => { root.remove-request(item.id); }
+                                                }
                                             }
                                         }
                                     }
                                 }
 
-                                if item.endpoint: TouchArea {
-                                    clicked => { root.send-info(item.id); }
+                                touch_item := TouchArea {
+                                    clicked => {
+                                        if (item.endpoint) {
+                                            root.send-info(item.id);
+                                        }
+                                    }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- In-App Settings Modal Overlay ---
+    if root.settings_open: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #00000088;
+
+        TouchArea {
+            // block clicks behind
+        }
+
+        Rectangle {
+            width: 420px;
+            height: 380px;
+            background: Theme.card_bg;
+            border-radius: 20px;
+            border-width: 1px;
+            border-color: Theme.card_border;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 18px;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Settings";
+                        font-size: 20px;
+                        font-weight: 700;
+                        color: Theme.text_primary;
+                    }
+                    IconButton {
+                        text: "✕";
+                        icon_size: 16px;
+                        clicked => {
+                            root.settings_open = false;
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 12px;
+
+                    Rectangle {
+                        background: Theme.btn_bg;
+                        border-radius: 12px;
+                        HorizontalLayout {
+                            padding: 14px;
+                            alignment: space-between;
+                            Text {
+                                text: "Theme Mode: " + (Theme.dark_mode ? "Dark" : "Light");
+                                font-size: 14px;
+                                font-weight: 500;
+                                color: Theme.text_primary;
+                            }
+                            Text {
+                                text: Theme.dark_mode ? "🌙" : "☀";
+                                font-size: 16px;
+                            }
+                        }
+                        TouchArea {
+                            clicked => { Theme.dark_mode = !Theme.dark_mode; }
+                        }
+                    }
+
+                    Rectangle {
+                        background: Theme.btn_bg;
+                        border-radius: 12px;
+                        HorizontalLayout {
+                            padding: 14px;
+                            alignment: space-between;
+                            Text {
+                                text: "Open Config Folder";
+                                font-size: 14px;
+                                font-weight: 500;
+                                color: Theme.text_primary;
+                            }
+                            Text {
+                                text: "📁";
+                                font-size: 16px;
+                            }
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.open-settings();
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: "Advanced configurations such as custom network port, download directories, and start on boot can be customized in the configuration directory.";
+                        font-size: 12px;
+                        color: Theme.text_secondary;
+                        wrap: word-wrap;
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: end;
+                    PillButton {
+                        text: "Close";
+                        clicked => {
+                            root.settings_open = false;
                         }
                     }
                 }
