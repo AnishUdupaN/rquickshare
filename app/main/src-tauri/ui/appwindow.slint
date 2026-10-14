@@ -1,3 +1,5 @@
+import { ScrollView } from "std-widgets.slint";
+
 export struct OutboundPayload {
     files: [string],
 }
@@ -18,18 +20,6 @@ export struct DisplayedItem {
     ack_bytes: int,
 }
 
-component RippleCircle inherits Rectangle {
-    in property <length> base_size: 24px;
-    in property <float> target_scale: 3.5;
-    in property <duration> anim_duration: 3000ms;
-    in property <duration> anim_delay: 0ms;
-
-    width: base_size;
-    height: base_size;
-    border-radius: base_size / 2;
-    background: #000000;
-    opacity: 0.12;
-}
 
 export component MainWindow inherits Window {
     title: "rquickshare";
