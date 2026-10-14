@@ -235,9 +235,14 @@ export component MainWindow inherits Window {
                 vertical-stretch: 1;
 
                 if !root.has_outbound_payload: VerticalLayout {
-                    x: 24px;
-                    y: 8px;
-                    width: parent.width - 40px;
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    padding-left: 24px;
+                    padding-right: 16px;
+                    padding-top: 8px;
+                    padding-bottom: 24px;
                     alignment: start;
                     spacing: 8px;
 
@@ -290,82 +295,20 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                if root.has_outbound_payload: Rectangle {
-                    width: 100%;
-                    height: 100%;
+                if root.has_outbound_payload: VerticalLayout {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    padding-left: 24px;
+                    padding-right: 16px;
+                    padding-top: 8px;
+                    padding-bottom: 24px;
+                    spacing: 12px;
 
-                    // Bottom helper note and buttons (Cancel + Add files)
-                    bottom_panel := VerticalLayout {
-                        x: 24px;
-                        y: parent.height - self.height - 24px;
-                        width: parent.width - 40px;
-                        spacing: 12px;
-
-                        Text {
-                            text: "Make sure both devices are unlocked, close together, and have bluetooth turned on. Device you're sharing with need Quick Share turned on and visible to you.";
-                            font-size: 11px;
-                            color: root.dark_mode ? #94a3b8 : #64748b;
-                            wrap: word-wrap;
-                        }
-
-                        HorizontalLayout {
-                            spacing: 8px;
-                            height: 40px;
-
-                            // Cancel button
-                            Rectangle {
-                                background: cancel_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
-                                border-radius: 12px;
-                                width: 80px;
-                                animate background { duration: 150ms; }
-
-                                Text {
-                                    text: "Cancel";
-                                    font-weight: 500;
-                                    font-size: 13px;
-                                    color: root.dark_mode ? #f8fafc : #0f172a;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                    width: 100%;
-                                    height: 100%;
-                                }
-
-                                cancel_touch := TouchArea {
-                                    clicked => { root.clear-sending(); }
-                                }
-                            }
-
-                            // + Add files button
-                            Rectangle {
-                                background: add_touch.has_hover ? (root.dark_mode ? #22c55e30 : #dcfce7) : (root.dark_mode ? #22c55e20 : #e2fbe8);
-                                border-radius: 12px;
-                                horizontal-stretch: 1;
-                                animate background { duration: 150ms; }
-
-                                Text {
-                                    text: "+ Add files";
-                                    font-weight: 600;
-                                    font-size: 13px;
-                                    color: root.dark_mode ? #4ade80 : #16a34a;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                    width: 100%;
-                                    height: 100%;
-                                }
-
-                                add_touch := TouchArea {
-                                    clicked => { root.open-file-picker(); }
-                                }
-                            }
-                        }
-                    }
-
-                    // Header: "Sharing N files" + Green Size Badge
-                    header_panel := HorizontalLayout {
-                        x: 24px;
-                        y: 8px;
-                        width: parent.width - 40px;
-                        height: 24px;
+                    // 1. Header (fixed height)
+                    HorizontalLayout {
+                        vertical-stretch: 0;
                         alignment: space-between;
 
                         Text {
@@ -396,12 +339,9 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Scrollable list of file cards (takes 100% of space between header and bottom controls)
+                    // 2. ScrollView (stretches to fill all remaining vertical space)
                     ScrollView {
-                        x: 24px;
-                        y: 44px;
-                        width: parent.width - 40px;
-                        height: max(60px, bottom_panel.y - self.y - 12px);
+                        vertical-stretch: 1;
 
                         VerticalLayout {
                             alignment: start;
@@ -453,6 +393,68 @@ export component MainWindow inherits Window {
                                         overflow: elide;
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // 3. Helper Note (fixed height)
+                    Text {
+                        vertical-stretch: 0;
+                        text: "Make sure both devices are unlocked, close together, and have bluetooth turned on. Device you're sharing with need Quick Share turned on and visible to you.";
+                        font-size: 11px;
+                        color: root.dark_mode ? #94a3b8 : #64748b;
+                        wrap: word-wrap;
+                    }
+
+                    // 4. Action Buttons (fixed height: 40px)
+                    HorizontalLayout {
+                        vertical-stretch: 0;
+                        spacing: 8px;
+                        height: 40px;
+
+                        // Cancel button
+                        Rectangle {
+                            background: cancel_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
+                            border-radius: 12px;
+                            width: 80px;
+                            animate background { duration: 150ms; }
+
+                            Text {
+                                text: "Cancel";
+                                font-weight: 500;
+                                font-size: 13px;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
+
+                            cancel_touch := TouchArea {
+                                clicked => { root.clear-sending(); }
+                            }
+                        }
+
+                        // + Add files button
+                        Rectangle {
+                            background: add_touch.has_hover ? (root.dark_mode ? #22c55e30 : #dcfce7) : (root.dark_mode ? #22c55e20 : #e2fbe8);
+                            border-radius: 12px;
+                            horizontal-stretch: 1;
+                            animate background { duration: 150ms; }
+
+                            Text {
+                                text: "+ Add files";
+                                font-weight: 600;
+                                font-size: 13px;
+                                color: root.dark_mode ? #4ade80 : #16a34a;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                width: 100%;
+                                height: 100%;
+                            }
+
+                            add_touch := TouchArea {
+                                clicked => { root.open-file-picker(); }
                             }
                         }
                     }
