@@ -73,6 +73,23 @@ impl ItemData {
     }
 }
 
+fn make_outbound_payload(paths: Vec<slint::SharedString>) -> OutboundPayload {
+    let names: Vec<slint::SharedString> = paths
+        .iter()
+        .map(|f| {
+            std::path::Path::new(f.as_str())
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| f.to_string())
+                .into()
+        })
+        .collect();
+    OutboundPayload {
+        files: slint::ModelRc::new(slint::VecModel::from(paths)),
+        file_names: slint::ModelRc::new(slint::VecModel::from(names)),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     set_up_logging()?;
@@ -204,9 +221,7 @@ async fn main() -> Result<(), anyhow::Error> {
                             }
                             current_files.push(slint::SharedString::from(path_str));
                             ui.set_has_outbound_payload(true);
-                            ui.set_outbound_payload(OutboundPayload {
-                                files: slint::ModelRc::new(slint::VecModel::from(current_files)),
-                            });
+                            ui.set_outbound_payload(make_outbound_payload(current_files));
 
                             let mut rqs_lock = state.rqs.lock().unwrap();
                             let _ = rqs_lock.discovery(state.dch_sender.clone());
@@ -245,9 +260,7 @@ async fn main() -> Result<(), anyhow::Error> {
     if !initial_files.is_empty() {
         let slint_files: Vec<slint::SharedString> = initial_files.into_iter().map(slint::SharedString::from).collect();
         ui.set_has_outbound_payload(true);
-        ui.set_outbound_payload(OutboundPayload {
-            files: slint::ModelRc::new(slint::VecModel::from(slint_files)),
-        });
+        ui.set_outbound_payload(make_outbound_payload(slint_files));
         let mut rqs_lock = app_state.rqs.lock().unwrap();
         let _ = rqs_lock.discovery(app_state.dch_sender.clone());
     }
@@ -286,9 +299,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                         }
                                         current_files.push(slint::SharedString::from(file_str));
                                         ui.set_has_outbound_payload(true);
-                                        ui.set_outbound_payload(OutboundPayload {
-                                            files: slint::ModelRc::new(slint::VecModel::from(current_files)),
-                                        });
+                                        ui.set_outbound_payload(make_outbound_payload(current_files));
 
                                         let mut rqs_lock = state.rqs.lock().unwrap();
                                         let _ = rqs_lock.discovery(state.dch_sender.clone());
@@ -625,8 +636,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         move || {
                             if let Some(ui) = ui_weak.upgrade() {
                                 ui.set_has_outbound_payload(true);
-                                let payload = OutboundPayload { files: slint::ModelRc::new(slint::VecModel::from(paths)) };
-                                ui.set_outbound_payload(payload);
+                                ui.set_outbound_payload(make_outbound_payload(paths));
                             }
                         }
                     });
@@ -735,7 +745,7 @@ async fn main() -> Result<(), anyhow::Error> {
         move || {
             if let Some(ui) = ui_weak.upgrade() {
                 ui.set_has_outbound_payload(false);
-                ui.set_outbound_payload(OutboundPayload { files: slint::ModelRc::new(slint::VecModel::default()) });
+                ui.set_outbound_payload(make_outbound_payload(Vec::new()));
             }
         }
     });

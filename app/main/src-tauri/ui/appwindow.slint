@@ -2,6 +2,7 @@ import { ScrollView } from "std-widgets.slint";
 
 export struct OutboundPayload {
     files: [string],
+    file_names: [string],
 }
 
 export struct DisplayedItem {
@@ -72,13 +73,14 @@ export component MainWindow inherits Window {
             vertical-stretch: 0;
             padding-left: 24px;
             padding-right: 24px;
-            padding-top: 16px;
-            padding-bottom: 16px;
+            padding-top: 12px;
+            padding-bottom: 12px;
             alignment: space-between;
 
             VerticalLayout {
-                spacing: 2px;
+                spacing: 1px;
                 alignment: center;
+                max-width: 260px;
 
                 Text {
                     text: "Device name";
@@ -87,9 +89,10 @@ export component MainWindow inherits Window {
                 }
                 Text {
                     text: root.hostname;
-                    font-size: 24px;
+                    font-size: 19px;
                     font-weight: 600;
                     color: root.dark_mode ? #f8fafc : #0f172a;
+                    overflow: elide;
                 }
             }
 
@@ -154,6 +157,10 @@ export component MainWindow inherits Window {
                     if root.dark_mode: Path {
                         width: 22px;
                         height: 22px;
+                        viewbox-x: 0;
+                        viewbox-y: 0;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
                         x: (parent.width - self.width) / 2;
                         y: (parent.height - self.height) / 2;
                         fill: #fbbf24;
@@ -163,6 +170,10 @@ export component MainWindow inherits Window {
                     if !root.dark_mode: Path {
                         width: 20px;
                         height: 20px;
+                        viewbox-x: 0;
+                        viewbox-y: 0;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
                         x: (parent.width - self.width) / 2;
                         y: (parent.height - self.height) / 2;
                         fill: #334155;
@@ -188,6 +199,10 @@ export component MainWindow inherits Window {
                     Path {
                         width: 22px;
                         height: 22px;
+                        viewbox-x: 0;
+                        viewbox-y: 0;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
                         x: (parent.width - self.width) / 2;
                         y: (parent.height - self.height) / 2;
                         fill: root.dark_mode ? #f8fafc : #0f172a;
@@ -212,10 +227,13 @@ export component MainWindow inherits Window {
                 vertical-stretch: 1;
                 padding-left: 24px;
                 padding-right: 16px;
-                padding-top: 12px;
+                padding-top: 8px;
                 padding-bottom: 24px;
+                alignment: start;
+                spacing: 16px;
 
                 if !root.has_outbound_payload: VerticalLayout {
+                    alignment: start;
                     spacing: 8px;
 
                     Text {
@@ -245,11 +263,12 @@ export component MainWindow inherits Window {
                             }
 
                             // Right Arrow Chevron (SideMenu.vue)
-                            Path {
-                                width: 20px;
-                                height: 20px;
-                                fill: root.dark_mode ? #94a3b8 : #475569;
-                                commands: "M 12.6 12 L 8 7.4 L 9.4 6 L 15.4 12 L 9.4 18 L 8 16.6 Z";
+                            Text {
+                                text: root.visibility == "Invisible" ? "‹" : "›";
+                                font-size: 24px;
+                                font-weight: 600;
+                                color: root.dark_mode ? #94a3b8 : #475569;
+                                vertical-alignment: center;
                             }
                         }
 
@@ -271,6 +290,7 @@ export component MainWindow inherits Window {
                     vertical-stretch: 1;
 
                     VerticalLayout {
+                        alignment: start;
                         spacing: 12px;
 
                         Text {
@@ -289,6 +309,10 @@ export component MainWindow inherits Window {
                             Path {
                                 width: 32px;
                                 height: 32px;
+                                viewbox-x: 0;
+                                viewbox-y: 0;
+                                viewbox-width: 24;
+                                viewbox-height: 24;
                                 x: (parent.width - self.width) / 2;
                                 y: (parent.height - self.height) / 2;
                                 fill: root.dark_mode ? #4ade80 : #16a34a;
@@ -296,8 +320,8 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        for file in root.outbound_payload.files: Text {
-                            text: file;
+                        for name in root.outbound_payload.file_names: Text {
+                            text: name;
                             font-size: 13px;
                             color: root.dark_mode ? #f8fafc : #0f172a;
                             overflow: elide;
@@ -436,6 +460,10 @@ export component MainWindow inherits Window {
                                             if item.state == "Finished": Path {
                                                 width: 24px;
                                                 height: 24px;
+                                                viewbox-x: 0;
+                                                viewbox-y: 0;
+                                                viewbox-width: 24;
+                                                viewbox-height: 24;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
                                                 fill: #22c55e;
@@ -445,6 +473,10 @@ export component MainWindow inherits Window {
                                             if item.state != "Finished" && item.device_type == "Phone": Path {
                                                 width: 24px;
                                                 height: 24px;
+                                                viewbox-x: 0;
+                                                viewbox-y: 0;
+                                                viewbox-width: 24;
+                                                viewbox-height: 24;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
                                                 fill: root.dark_mode ? #f8fafc : #0f172a;
@@ -454,6 +486,10 @@ export component MainWindow inherits Window {
                                             if item.state != "Finished" && item.device_type == "Laptop": Path {
                                                 width: 24px;
                                                 height: 24px;
+                                                viewbox-x: 0;
+                                                viewbox-y: 0;
+                                                viewbox-width: 24;
+                                                viewbox-height: 24;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
                                                 fill: root.dark_mode ? #f8fafc : #0f172a;
@@ -463,6 +499,10 @@ export component MainWindow inherits Window {
                                             if item.state != "Finished" && item.device_type == "Tablet": Path {
                                                 width: 24px;
                                                 height: 24px;
+                                                viewbox-x: 0;
+                                                viewbox-y: 0;
+                                                viewbox-width: 24;
+                                                viewbox-height: 24;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
                                                 fill: root.dark_mode ? #f8fafc : #0f172a;
@@ -472,6 +512,10 @@ export component MainWindow inherits Window {
                                             if item.state != "Finished" && item.device_type != "Phone" && item.device_type != "Laptop" && item.device_type != "Tablet": Path {
                                                 width: 24px;
                                                 height: 24px;
+                                                viewbox-x: 0;
+                                                viewbox-y: 0;
+                                                viewbox-width: 24;
+                                                viewbox-height: 24;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
                                                 fill: root.dark_mode ? #f8fafc : #0f172a;
@@ -699,6 +743,10 @@ export component MainWindow inherits Window {
                                 Path {
                                     width: 32px;
                                     height: 32px;
+                                    viewbox-x: 0;
+                                    viewbox-y: 0;
+                                    viewbox-width: 24;
+                                    viewbox-height: 24;
                                     fill: drop_touch.has_hover ? #22c55e : (root.dark_mode ? #4ade80 : #334155);
                                     commands: "M 11 16 V 7.85 L 8.4 10.45 L 7 9 L 12 4 L 17 9 L 15.6 10.45 L 13 7.85 V 16 Z M 6 20 Q 5.175 20 4.588 19.413 T 4 18 V 15 H 6 V 18 H 18 V 15 H 20 V 18 Q 20 18.825 19.413 19.413 T 18 20 Z";
                                 }
@@ -718,29 +766,18 @@ export component MainWindow inherits Window {
                                     background: select_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
                                     border-radius: 12px;
                                     height: 36px;
-                                    width: 100px;
+                                    width: 104px;
                                     animate background { duration: 150ms; }
 
-                                    HorizontalLayout {
-                                        alignment: center;
-                                        spacing: 6px;
-                                        padding-left: 12px;
-                                        padding-right: 12px;
-
-                                        Path {
-                                            width: 14px;
-                                            height: 14px;
-                                            fill: root.dark_mode ? #f8fafc : #0f172a;
-                                            commands: "M 11 11 H 5 V 13 H 11 V 19 H 13 V 13 H 19 V 11 H 13 V 5 H 11 Z";
-                                        }
-
-                                        Text {
-                                            text: "Select";
-                                            font-size: 13px;
-                                            font-weight: 500;
-                                            color: root.dark_mode ? #f8fafc : #0f172a;
-                                            vertical-alignment: center;
-                                        }
+                                    Text {
+                                        text: "+  Select";
+                                        font-size: 13px;
+                                        font-weight: 600;
+                                        color: root.dark_mode ? #f8fafc : #0f172a;
+                                        vertical-alignment: center;
+                                        horizontal-alignment: center;
+                                        width: 100%;
+                                        height: 100%;
                                     }
 
                                     select_touch := TouchArea {
