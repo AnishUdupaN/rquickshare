@@ -237,7 +237,6 @@ export component MainWindow inherits Window {
                 padding-right: 16px;
                 padding-top: 8px;
                 padding-bottom: 24px;
-                alignment: start;
                 spacing: 16px;
 
                 if !root.has_outbound_payload: VerticalLayout {
@@ -336,6 +335,7 @@ export component MainWindow inherits Window {
                         vertical-stretch: 1;
 
                         VerticalLayout {
+                            alignment: start;
                             spacing: 8px;
 
                             for item in root.outbound_payload.file_details: Rectangle {

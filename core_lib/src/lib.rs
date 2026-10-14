@@ -163,6 +163,8 @@ impl RQS {
         &mut self,
         sender: broadcast::Sender<EndpointInfo>,
     ) -> Result<(), anyhow::Error> {
+        self.stop_discovery();
+
         let tracker = self
             .tracker
             .as_ref()

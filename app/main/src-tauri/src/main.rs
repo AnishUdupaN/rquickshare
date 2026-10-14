@@ -127,9 +127,13 @@ fn make_outbound_payload(paths: Vec<slint::SharedString>) -> OutboundPayload {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<(), anyhow::Error> {
     set_up_logging()?;
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let _guard = rt.enter();
 
     // If DISPLAY is set on Linux, prefer X11/XWayland so that DnD (drag & drop) works,
     // as Winit does not implement WindowEvent::DroppedFile on Wayland.
@@ -191,21 +195,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let download_path = get_download_path();
 
     let mut rqs = RQS::new(visibility, port_number, download_path);
-    let (sender_file, ble_receiver) = rqs.run().await.unwrap();
+    let (sender_file, ble_receiver) = rt.block_on(rqs.run()).unwrap();
 
     let app_state = Arc::new(AppState {
         message_sender: rqs.message_sender.clone(),
-        dch_sender: broadcast::channel(10).0,
+        dch_sender: broadcast::channel(100).0,
         visibility_sender: rqs.visibility_sender.clone(),
         sender_file,
         rqs: Mutex::new(rqs),
         discovered_endpoints: Mutex::new(std::collections::HashMap::new()),
     });
-
-    {
-        let mut rqs_lock = app_state.rqs.lock().unwrap();
-        let _ = rqs_lock.discovery(app_state.dch_sender.clone());
-    }
 
     let state_for_ble = app_state.clone();
     tokio::spawn(async move {
@@ -370,6 +369,10 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut receiver = state_for_msg.message_sender.subscribe();
         loop {
             if let Ok(info) = receiver.recv().await {
+                if info.direction == ChannelDirection::FrontToLib {
+                    continue;
+                }
+
                 if info.state.as_ref().unwrap_or(&State::Initial) == &State::WaitingForUserConsent {
                     let name = info
                         .meta
@@ -438,6 +441,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
                             state[i] = item.clone();
                         } else {
+                            if info.state == Some(State::Disconnected)
+                                || info.state == Some(State::Cancelled)
+                                || info.state == Some(State::Rejected)
+                            {
+                                return;
+                            }
                             let mut item = ItemData {
                                 id: info.id.clone(),
                                 name: "Unknown".into(),
@@ -498,14 +507,25 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut dch_receiver = state_for_dch.dch_sender.subscribe();
         loop {
             if let Ok(info) = dch_receiver.recv().await {
+                let mut changed = false;
                 {
                     let mut eps = state_for_dch.discovered_endpoints.lock().unwrap();
                     let is_present = info.present.unwrap_or(true);
                     if is_present {
-                        eps.insert(info.id.clone(), info.clone());
+                        let prev = eps.get(&info.id);
+                        if prev.map(|e| e.name != info.name || e.rtype != info.rtype).unwrap_or(true) {
+                            eps.insert(info.id.clone(), info.clone());
+                            changed = true;
+                        }
                     } else {
-                        eps.remove(&info.id);
+                        if eps.remove(&info.id).is_some() {
+                            changed = true;
+                        }
                     }
+                }
+
+                if !changed {
+                    continue;
                 }
 
                 let ui_weak_dch_inner = ui_weak_dch.clone();
@@ -762,11 +782,14 @@ async fn main() -> Result<(), anyhow::Error> {
                     }
 
                     if !name.is_empty() && !addr.is_empty() {
-                        let _ = state_for_send_inner.sender_file.blocking_send(SendInfo {
-                            id: id_str.clone(),
-                            name,
-                            addr,
-                            ob: LibOutboundPayload::Files(files),
+                        let sender_file = state_for_send_inner.sender_file.clone();
+                        tokio::spawn(async move {
+                            let _ = sender_file.send(SendInfo {
+                                id: id_str.clone(),
+                                name,
+                                addr,
+                                ob: LibOutboundPayload::Files(files),
+                            }).await;
                         });
                     }
                 }
@@ -803,12 +826,15 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     });
 
+    let state_for_clear = app_state.clone();
     ui.on_clear_sending({
         let ui_weak = ui_weak.clone();
+        let state = state_for_clear.clone();
         move || {
             if let Some(ui) = ui_weak.upgrade() {
                 ui.set_has_outbound_payload(false);
                 ui.set_outbound_payload(make_outbound_payload(Vec::new()));
+                state.rqs.lock().unwrap().stop_discovery();
             }
         }
     });
@@ -861,10 +887,8 @@ async fn main() -> Result<(), anyhow::Error> {
                     activate: Box::new(|this: &mut Self| {
                         let _ = std::fs::remove_file(&this.socket_path);
                         let state = this.state.clone();
-                        tokio::task::block_in_place(|| {
-                            tokio::runtime::Handle::current().block_on(async move {
-                                let _ = state.rqs.lock().unwrap().stop().await;
-                            });
+                        tokio::runtime::Handle::current().block_on(async move {
+                            let _ = state.rqs.lock().unwrap().stop().await;
                         });
                         let _ = slint::quit_event_loop();
                     }),
@@ -895,10 +919,8 @@ async fn main() -> Result<(), anyhow::Error> {
             #[cfg(unix)]
             let _ = std::fs::remove_file(&socket_path_close);
             let state = state_for_shutdown.clone();
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async move {
-                    let _ = state.rqs.lock().unwrap().stop().await;
-                });
+            tokio::runtime::Handle::current().block_on(async move {
+                let _ = state.rqs.lock().unwrap().stop().await;
             });
 
             let _ = slint::quit_event_loop();

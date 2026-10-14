@@ -18,7 +18,7 @@ pub fn send_request_notification(name: String, id: String, state: Arc<AppState>)
         .show()
     {
         Ok(n) => {
-            tokio::task::spawn(async move {
+            std::thread::spawn(move || {
                 n.wait_for_action(move |action| match action {
                     "accept" => {
                         let _ = state.message_sender.send(ChannelMessage {
@@ -58,7 +58,7 @@ pub fn send_temporarily_notification(state: Arc<AppState>) {
         .show()
     {
         Ok(n) => {
-            tokio::task::spawn(async move {
+            std::thread::spawn(move || {
                 n.wait_for_action(move |action| match action {
                     "visible" => {
                         state.rqs.lock().unwrap().change_visibility(Visibility::Temporarily);
