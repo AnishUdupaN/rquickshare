@@ -121,8 +121,69 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     });
 
+    let ui_holder = Arc::new(Mutex::new(None::<slint::Weak<MainWindow>>));
+
+    struct AppCustomHandler {
+        ui_holder: Arc<Mutex<Option<slint::Weak<MainWindow>>>>,
+        app_state: Arc<AppState>,
+    }
+
+    impl slint::winit_030::CustomApplicationHandler for AppCustomHandler {
+        fn window_event(
+            &mut self,
+            _event_loop: &slint::winit_030::winit::event_loop::ActiveEventLoop,
+            _window_id: slint::winit_030::winit::window::WindowId,
+            _winit_window: Option<&slint::winit_030::winit::window::Window>,
+            _slint_window: Option<&slint::Window>,
+            event: &slint::winit_030::winit::event::WindowEvent,
+        ) -> slint::winit_030::EventResult {
+            if let slint::winit_030::winit::event::WindowEvent::DroppedFile(path) = event {
+                let path_str = path.to_string_lossy().to_string();
+                let ui_holder = self.ui_holder.clone();
+                let state = self.app_state.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(weak) = ui_holder.lock().unwrap().as_ref() {
+                        if let Some(ui) = weak.upgrade() {
+                            let mut current_files = Vec::new();
+                            let payload = ui.get_outbound_payload();
+                            for i in 0..payload.files.row_count() {
+                                if let Some(f) = payload.files.row_data(i) {
+                                    current_files.push(f);
+                                }
+                            }
+                            current_files.push(slint::SharedString::from(path_str));
+                            ui.set_has_outbound_payload(true);
+                            ui.set_outbound_payload(OutboundPayload {
+                                files: slint::ModelRc::new(slint::VecModel::from(current_files)),
+                            });
+
+                            let mut rqs_lock = state.rqs.lock().unwrap();
+                            let _ = rqs_lock.discovery(state.dch_sender.clone());
+                        }
+                    }
+                });
+            }
+            slint::winit_030::EventResult::Propagate
+        }
+    }
+
+    let _ = slint::BackendSelector::new()
+        .backend_name("winit".into())
+        .with_winit_window_attributes_hook(|attrs| {
+            attrs
+                .with_resizable(true)
+                .with_inner_size(slint::winit_030::winit::dpi::LogicalSize::new(900.0, 600.0))
+                .with_min_inner_size(slint::winit_030::winit::dpi::LogicalSize::new(650.0, 450.0))
+        })
+        .with_winit_custom_application_handler(AppCustomHandler {
+            ui_holder: ui_holder.clone(),
+            app_state: app_state.clone(),
+        })
+        .select();
+
     let ui = MainWindow::new().unwrap();
     let ui_weak = ui.as_weak();
+    *ui_holder.lock().unwrap() = Some(ui_weak.clone());
 
     // Since ModelRc is not Send, we cannot send it between threads.
     // Instead we will rebuild or manage the list inside invoke_from_event_loop.
@@ -647,10 +708,10 @@ async fn main() -> Result<(), anyhow::Error> {
         slint::CloseRequestResponse::HideWindow
     });
 
-    if store::get_startminimized() {
-        let _ = ui.hide();
+    if !store::get_startminimized() {
+        ui.show()?;
     }
 
-    ui.run().unwrap();
+    slint::run_event_loop_until_quit()?;
     Ok(())
 }

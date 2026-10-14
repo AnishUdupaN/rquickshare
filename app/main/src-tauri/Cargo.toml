@@ -24,7 +24,7 @@ sys_metrics = "0.2"
 time = { version = "0.3", features = ["formatting"] }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net", "sync", "time", "io-util"] }
 tokio-util = { version = "0.7", features = ["rt"] }
-slint = "1.8.0"
+slint = { version = "1.8.0", features = ["unstable-winit-030"] }
 open = "5.4.4"
 arboard = "3.6.1"
 rfd = "0.17.2"
