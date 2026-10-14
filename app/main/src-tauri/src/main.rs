@@ -1,35 +1,22 @@
-#![cfg_attr(
-    all(not(debug_assertions), target_os = "windows"),
-    windows_subsystem = "windows"
-)]
-
 slint::include_modules!();
+
+use slint::Model;
 
 #[macro_use]
 extern crate log;
 
 use std::sync::{Arc, Mutex};
 
-use rqs_lib::channel::{ChannelDirection, ChannelMessage};
-use rqs_lib::{EndpointInfo, SendInfo, State, Visibility, RQS};
-use store::get_startminimized;
-#[cfg(target_os = "macos")]
-use tauri::image::Image;
-use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder},
-    tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, Window, WindowEvent,
-};
-use tauri_plugin_autostart::MacosLauncher;
+use rqs_lib::channel::{ChannelDirection, ChannelMessage, ChannelAction};
+use rqs_lib::{EndpointInfo, SendInfo, State, Visibility, RQS, DeviceType, OutboundPayload as LibOutboundPayload};
 use tokio::sync::{broadcast, mpsc, watch};
 
 use crate::logger::set_up_logging;
 use crate::notification::{send_request_notification, send_temporarily_notification};
 use crate::store::{
-    get_download_path, get_port, get_realclose, get_visibility, init_default, set_visibility,
+    get_download_path, get_port, get_visibility, init_default, set_visibility,
 };
 
-mod cmds;
 mod logger;
 mod notification;
 mod store;
@@ -39,294 +26,512 @@ pub struct AppState {
     pub dch_sender: broadcast::Sender<EndpointInfo>,
     pub visibility_sender: Arc<Mutex<watch::Sender<Visibility>>>,
     pub sender_file: mpsc::Sender<SendInfo>,
-    pub ble_receiver: broadcast::Receiver<()>,
     pub rqs: Mutex<RQS>,
+
+    pub discovered_endpoints: Mutex<std::collections::HashMap<String, EndpointInfo>>,
+}
+
+#[derive(Clone, Default)]
+struct ItemData {
+    pub id: String,
+    pub name: String,
+    pub device_type: String,
+    pub endpoint: bool,
+    pub state: String,
+    pub pin_code: String,
+    pub files: Vec<String>,
+    pub text_description: String,
+    pub text_payload: String,
+    pub text_type: String,
+    pub destination: String,
+    pub total_bytes: i32,
+    pub ack_bytes: i32,
+}
+
+impl ItemData {
+    fn to_displayed_item(&self) -> DisplayedItem {
+        let mut f = Vec::new();
+        for file in &self.files {
+            f.push(slint::SharedString::from(file.clone()));
+        }
+
+        DisplayedItem {
+            id: self.id.clone().into(),
+            name: self.name.clone().into(),
+            device_type: self.device_type.clone().into(),
+            endpoint: self.endpoint,
+            state: self.state.clone().into(),
+            pin_code: self.pin_code.clone().into(),
+            files: slint::ModelRc::new(slint::VecModel::from(f)),
+            text_description: self.text_description.clone().into(),
+            text_payload: self.text_payload.clone().into(),
+            text_type: self.text_type.clone().into(),
+            destination: self.destination.clone().into(),
+            total_bytes: self.total_bytes,
+            ack_bytes: self.ack_bytes,
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    MainWindow::new().unwrap().run().unwrap();
+    set_up_logging()?;
 
-    // Define tauri async runtime to be tokio
-    tauri::async_runtime::set(tokio::runtime::Handle::current());
+    debug!("Starting setup of RQuickShare app");
 
-    // Build and run Tauri app
-    tauri::Builder::default()
-        .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            None,
-        ))
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            trace!("tauri_plugin_single_instance: instance already running");
-            open_main_window(app);
-        }))
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![
-            cmds::change_download_path,
-            cmds::change_visibility,
-            cmds::start_discovery,
-            cmds::stop_discovery,
-            cmds::get_hostname,
-            cmds::send_payload,
-            cmds::send_to_rs,
-        ])
-        .setup(|app| {
-            // Setting up logging inside file for the app
-            set_up_logging(app.app_handle())?;
+    init_default();
 
-            debug!("Starting setup of RQuickShare app");
+    let visibility = get_visibility();
+    let port_number = get_port();
+    let download_path = get_download_path();
 
-            // Initialize default values for the store
-            init_default(app.app_handle());
+    let mut rqs = RQS::new(visibility, port_number, download_path);
+    let (sender_file, ble_receiver) = rqs.run().await.unwrap();
 
-            // Initialize system Tray
-            let name = MenuItemBuilder::new("RQuickShare")
-                .enabled(false)
-                .build(app)?;
-            let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
-            let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-            let menu = MenuBuilder::new(app)
-                .item(&name)
-                .separator()
-                .items(&[&show, &quit])
-                .build()?;
-
-            #[cfg(target_os = "macos")]
-            let icon = Image::from_bytes(include_bytes!("../icons/tray.png")).unwrap();
-            #[cfg(not(target_os = "macos"))]
-            let icon = app.default_window_icon().unwrap().clone();
-
-            let tray = TrayIconBuilder::new()
-                .icon(icon)
-                .menu(&menu)
-                .on_menu_event(move |app, event| match event.id().as_ref() {
-                    "show" => {
-                        trace!("tray_show");
-                        open_main_window(app);
-                    }
-                    "quit" => {
-                        trace!("tray_quit");
-                        kill_app(app.app_handle());
-                    }
-                    _ => (),
-                })
-                .build(app)?;
-
-            let _ = tray.set_icon_as_template(true);
-
-            // Fetch initial configuration values
-            let visibility = get_visibility(app.app_handle());
-            let port_number = get_port(app.app_handle());
-            let download_path = get_download_path(app.app_handle());
-
-            let app_handle = app.app_handle().clone();
-            // This is not optimal, but until I find a better way to init log
-            // (inside file and stdout) before starting the lib, I'll keep it as
-            // is. This allow me to get the whole log :)
-            tokio::task::block_in_place(|| {
-                tauri::async_runtime::block_on(async move {
-                    trace!("Beginning of RQS start");
-                    // Start the RQuickShare service
-                    let mut rqs = RQS::new(visibility, port_number, download_path);
-                    let (sender_file, ble_receiver) = rqs.run().await.unwrap();
-
-                    // Define state for tauri app
-                    app_handle.manage(AppState {
-                        message_sender: rqs.message_sender.clone(),
-                        dch_sender: broadcast::channel(10).0,
-                        visibility_sender: rqs.visibility_sender.clone(),
-                        sender_file,
-                        ble_receiver,
-                        rqs: Mutex::new(rqs),
-                    });
-                });
-            });
-
-            spawn_receiver_tasks(app.app_handle());
-            Ok(())
-        })
-        .on_window_event(handle_window_event)
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|app_handle, event| match event {
-            tauri::RunEvent::Ready { .. } => {
-                trace!("RunEvent::Ready");
-                if get_startminimized(app_handle) {
-                    #[cfg(not(target_os = "macos"))]
-                    app_handle
-                        .get_webview_window("main")
-                        .unwrap()
-                        .hide()
-                        .unwrap();
-                    #[cfg(target_os = "macos")]
-                    app_handle.hide().unwrap();
-                }
-            }
-            tauri::RunEvent::ExitRequested { code, .. } => {
-                trace!("RunEvent::ExitRequested");
-                if code != Some(-1) {
-                    kill_app(app_handle);
-                }
-            }
-            #[cfg(target_os = "macos")]
-            tauri::RunEvent::Reopen { .. } => {
-                trace!("RunEvent::Reopen");
-                open_main_window(app_handle);
-            }
-            _ => {}
-        });
-
-    info!("Application stopped");
-    Ok(())
-}
-
-fn spawn_receiver_tasks(app_handle: &AppHandle) {
-    let capp_handle = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        let state: tauri::State<'_, AppState> = capp_handle.state();
-        let mut receiver = state.message_sender.subscribe();
-
-        loop {
-            let rinfo = receiver.recv().await;
-
-            match rinfo {
-                Ok(info) => {
-                    if info.state.as_ref().unwrap_or(&State::Initial)
-                        == &State::WaitingForUserConsent
-                    {
-                        let name = info
-                            .meta
-                            .as_ref()
-                            .and_then(|meta| meta.source.as_ref())
-                            .map(|source| source.name.clone())
-                            .unwrap_or_else(|| "Unknown".to_string());
-                        send_request_notification(name, info.id.clone(), &capp_handle);
-                    }
-                    rs2js_channelmessage(info, &capp_handle);
-                }
-                Err(e) => {
-                    error!("RecvError: message_sender: {e}");
-                }
-            }
-        }
+    let app_state = Arc::new(AppState {
+        message_sender: rqs.message_sender.clone(),
+        dch_sender: broadcast::channel(10).0,
+        visibility_sender: rqs.visibility_sender.clone(),
+        sender_file,
+        rqs: Mutex::new(rqs),
+        discovered_endpoints: Mutex::new(std::collections::HashMap::new()),
     });
 
-    let capp_handle = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        let state: tauri::State<'_, AppState> = capp_handle.state();
-        let mut dch_receiver = state.dch_sender.subscribe();
+    {
+        let mut rqs_lock = app_state.rqs.lock().unwrap();
+        let _ = rqs_lock.discovery(app_state.dch_sender.clone());
+    }
 
-        loop {
-            let rinfo = dch_receiver.recv().await;
-
-            match rinfo {
-                Ok(info) => rs2js_endpointinfo(info, &capp_handle),
-                Err(e) => {
-                    error!("RecvError: dch_sender: {e}");
-                }
-            }
-        }
-    });
-
-    let capp_handle = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        let state: tauri::State<'_, AppState> = capp_handle.state();
-        let mut visibility_receiver = state.visibility_sender.lock().unwrap().subscribe();
-
-        loop {
-            let rinfo = visibility_receiver.changed().await;
-
-            match rinfo {
-                Ok(_) => {
-                    let v = visibility_receiver.borrow_and_update();
-                    let _ = set_visibility(&capp_handle, *v);
-                }
-                Err(e) => {
-                    error!("RecvError: visibility_receiver: {e}");
-                }
-            }
-        }
-    });
-
-    let capp_handle = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        let state: tauri::State<'_, AppState> = capp_handle.state();
-        let mut ble_receiver = state.ble_receiver.resubscribe();
+    let state_for_ble = app_state.clone();
+    tokio::spawn(async move {
+        let mut ble_receiver = ble_receiver;
         let mut last_sent = std::time::Instant::now() - std::time::Duration::from_secs(120);
-
         loop {
-            let rinfo = ble_receiver.recv().await;
+            if let Ok(_) = ble_receiver.recv().await {
+                let v = get_visibility();
+                trace!("BLE received: {:?}", v);
 
-            match rinfo {
-                Ok(_) => {
-                    let v = get_visibility(&capp_handle);
-                    trace!("Tauri: ble received: {:?}", v);
-
-                    if v == Visibility::Invisible
-                        && last_sent.elapsed() >= std::time::Duration::from_secs(120)
-                    {
-                        send_temporarily_notification(&capp_handle);
-                        last_sent = std::time::Instant::now();
-                    }
-                }
-                Err(e) => {
-                    error!("RecvError: ble_receiver: {e}");
+                if v == Visibility::Invisible
+                    && last_sent.elapsed() >= std::time::Duration::from_secs(120)
+                {
+                    send_temporarily_notification(state_for_ble.clone());
+                    last_sent = std::time::Instant::now();
                 }
             }
         }
     });
-}
 
-fn handle_window_event(w: &Window, event: &WindowEvent) {
-    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-        if get_realclose(w.app_handle()) {
-            trace!("handle_window_event: real close");
-            return;
+    let ui = MainWindow::new().unwrap();
+    let ui_weak = ui.as_weak();
+
+    // Since ModelRc is not Send, we cannot send it between threads.
+    // Instead we will rebuild or manage the list inside invoke_from_event_loop.
+    // Actually, we can get the model from ui.get_displayed_items().
+
+    // We just maintain the pure data model in a Mutex, and send a signal to update UI.
+    let items_state = Arc::new(Mutex::new(Vec::<ItemData>::new()));
+
+    let state_for_msg = app_state.clone();
+    let ui_weak_msg = ui_weak.clone();
+    let items_state_msg = items_state.clone();
+    tokio::spawn(async move {
+        let mut receiver = state_for_msg.message_sender.subscribe();
+        loop {
+            if let Ok(info) = receiver.recv().await {
+                if info.state.as_ref().unwrap_or(&State::Initial) == &State::WaitingForUserConsent {
+                    let name = info
+                        .meta
+                        .as_ref()
+                        .and_then(|meta| meta.source.as_ref())
+                        .map(|source| source.name.clone())
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    send_request_notification(name, info.id.clone(), state_for_msg.clone());
+                }
+
+                let info = info.clone();
+                let ui_weak_msg_inner = ui_weak_msg.clone();
+                let items_state_inner = items_state_msg.clone();
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak_msg_inner.upgrade() {
+                        let mut state = items_state_inner.lock().unwrap();
+
+                        let idx = state.iter().position(|x| x.id == info.id);
+
+                        if let Some(i) = idx {
+                            let mut item = state[i].clone();
+
+                            if let Some(st) = &info.state {
+                                item.state = match st {
+                                    State::Initial => "Initial",
+                                    State::WaitingForUserConsent => "WaitingForUserConsent",
+                                    State::SentIntroduction => "SentIntroduction",
+                                    State::SendingFiles => "SendingFiles",
+                                    State::ReceivingFiles => "ReceivingFiles",
+                                    State::Finished => "Finished",
+                                    State::Cancelled => "Cancelled",
+                                    State::Rejected => "Rejected",
+                                    State::Disconnected => "Disconnected",
+                                    _ => "",
+                                }.into();
+                            }
+
+                            if let Some(meta) = &info.meta {
+                                if let Some(dest) = &meta.destination {
+                                    item.destination = dest.into();
+                                }
+                                if let Some(files) = &meta.files {
+                                    item.files = files.clone();
+                                }
+                                if let Some(tp) = &meta.text_payload {
+                                    item.text_payload = tp.into();
+                                    item.text_type = "Text".into();
+                                }
+                                if let Some(td) = &meta.text_description {
+                                    item.text_description = td.into();
+                                }
+                                if let Some(pin) = &meta.pin_code {
+                                    item.pin_code = pin.into();
+                                }
+                                if let Some(source) = &meta.source {
+                                    item.name = source.name.clone().into();
+                                    item.device_type = match source.device_type {
+                                        DeviceType::Unknown => "Unknown",
+                                        DeviceType::Phone => "Phone",
+                                        DeviceType::Tablet => "Tablet",
+                                        DeviceType::Laptop => "Laptop",
+                                    }.into();
+                                }
+                            }
+
+                            state[i] = item.clone();
+                        } else {
+                            let mut item = ItemData {
+                                id: info.id.clone(),
+                                name: "Unknown".into(),
+                                device_type: "Unknown".into(),
+                                endpoint: false,
+                                ..Default::default()
+                            };
+
+                            if let Some(st) = &info.state {
+                                item.state = match st {
+                                    State::Initial => "Initial",
+                                    State::WaitingForUserConsent => "WaitingForUserConsent",
+                                    State::SentIntroduction => "SentIntroduction",
+                                    State::SendingFiles => "SendingFiles",
+                                    State::ReceivingFiles => "ReceivingFiles",
+                                    State::Finished => "Finished",
+                                    State::Cancelled => "Cancelled",
+                                    State::Rejected => "Rejected",
+                                    State::Disconnected => "Disconnected",
+                                    _ => "",
+                                }.into();
+                            }
+
+                            if let Some(meta) = &info.meta {
+                                if let Some(source) = &meta.source {
+                                    item.name = source.name.clone().into();
+                                    item.device_type = match source.device_type {
+                                        DeviceType::Unknown => "Unknown",
+                                        DeviceType::Phone => "Phone",
+                                        DeviceType::Tablet => "Tablet",
+                                        DeviceType::Laptop => "Laptop",
+                                    }.into();
+                                }
+                                if let Some(files) = &meta.files {
+                                    item.files = files.clone();
+                                }
+                            }
+
+                            state.push(item);
+                        }
+
+                        // Rebuild UI model
+                        let mut new_model = Vec::new();
+                        for item in state.iter() {
+                            new_model.push(item.to_displayed_item());
+                        }
+                        ui.set_displayed_items(slint::ModelRc::new(slint::VecModel::from(new_model)));
+                    }
+                });
+            }
         }
+    });
 
-        trace!("handle_window_event: prevent close");
-        w.hide().unwrap();
-        api.prevent_close();
-    }
-}
+    let state_for_dch = app_state.clone();
+    let ui_weak_dch = ui_weak.clone();
+    let items_state_dch = items_state.clone();
+    tokio::spawn(async move {
+        let mut dch_receiver = state_for_dch.dch_sender.subscribe();
+        loop {
+            if let Ok(info) = dch_receiver.recv().await {
+                {
+                    let mut eps = state_for_dch.discovered_endpoints.lock().unwrap();
+                    let is_present = info.present.unwrap_or(true);
+                    if is_present {
+                        eps.insert(info.id.clone(), info.clone());
+                    } else {
+                        eps.remove(&info.id);
+                    }
+                }
 
-fn rs2js_channelmessage(message: ChannelMessage, manager: &AppHandle) {
-    if message.direction == ChannelDirection::FrontToLib {
-        return;
-    }
+                let ui_weak_dch_inner = ui_weak_dch.clone();
+                let items_state_inner = items_state_dch.clone();
 
-    info!("rs2js_channelmessage: {:?}", &message);
-    manager.emit("rs2js_channelmessage", &message).unwrap();
-}
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak_dch_inner.upgrade() {
+                        let mut state = items_state_inner.lock().unwrap();
 
-fn rs2js_endpointinfo(message: EndpointInfo, manager: &AppHandle) {
-    info!("rs2js_endpointinfo: {:?}", &message);
-    manager.emit("rs2js_endpointinfo", &message).unwrap();
-}
+                        let is_present = info.present.unwrap_or(true);
 
-fn open_main_window(app_handle: &AppHandle) {
-    if let Some(webview_window) = app_handle.get_webview_window("main") {
-        let _ = webview_window.show();
-        let _ = webview_window.set_focus();
-        return;
-    }
+                        let idx = state.iter().position(|x| x.id == info.id);
 
-    warn!("open_main_window: no main window found");
-}
+                        if let Some(i) = idx {
+                            if !is_present && state[i].state == "" {
+                                state.remove(i);
+                            } else if is_present {
+                                let mut item = state[i].clone();
+                                if let Some(name) = &info.name {
+                                    item.name = name.clone().into();
+                                }
+                                if let Some(rtype) = &info.rtype {
+                                    item.device_type = match rtype {
+                                        DeviceType::Unknown => "Unknown",
+                                        DeviceType::Phone => "Phone",
+                                        DeviceType::Tablet => "Tablet",
+                                        DeviceType::Laptop => "Laptop",
+                                    }.into();
+                                }
+                                state[i] = item;
+                            }
+                        } else if is_present {
+                            let item = ItemData {
+                                id: info.id.clone(),
+                                name: info.name.clone().unwrap_or_else(|| "Unknown".to_string()),
+                                device_type: match info.rtype {
+                                    Some(DeviceType::Unknown) | None => "Unknown",
+                                    Some(DeviceType::Phone) => "Phone",
+                                    Some(DeviceType::Tablet) => "Tablet",
+                                    Some(DeviceType::Laptop) => "Laptop",
+                                }.into(),
+                                endpoint: true,
+                                ..Default::default()
+                            };
+                            state.push(item);
+                        }
 
-fn kill_app(app_handle: &AppHandle) {
-    let state: tauri::State<'_, AppState> = app_handle.state();
+                        let mut new_model = Vec::new();
+                        for item in state.iter() {
+                            new_model.push(item.to_displayed_item());
+                        }
+                        ui.set_displayed_items(slint::ModelRc::new(slint::VecModel::from(new_model)));
+                    }
+                });
+            }
+        }
+    });
 
-    tokio::task::block_in_place(|| {
-        #[allow(clippy::await_holding_lock)]
-        tauri::async_runtime::block_on(async move {
-            let _ = state.rqs.lock().unwrap().stop().await;
+    let state_for_vis = app_state.clone();
+    tokio::spawn(async move {
+        let mut visibility_receiver = state_for_vis.visibility_sender.lock().unwrap().subscribe();
+        loop {
+            if let Ok(_) = visibility_receiver.changed().await {
+                let v = visibility_receiver.borrow_and_update();
+                let _ = set_visibility(*v);
+            }
+        }
+    });
+
+    ui.on_open_url(|url| {
+        let _ = open::that(url.as_str());
+    });
+
+    ui.on_open_settings(|| {
+        let proj_dirs = directories::ProjectDirs::from("dev", "mandre", "rquickshare").unwrap();
+        let _ = open::that(proj_dirs.config_dir());
+    });
+
+    let state_for_vis_toggle = app_state.clone();
+    let ui_weak_vis = ui_weak.clone();
+    ui.on_invert_visibility(move || {
+        let current = store::get_visibility();
+        let next = match current {
+            Visibility::Visible => Visibility::Invisible,
+            Visibility::Invisible => Visibility::Temporarily,
+            Visibility::Temporarily => Visibility::Visible,
+        };
+        let _ = store::set_visibility(next.clone());
+        state_for_vis_toggle.rqs.lock().unwrap().change_visibility(next.clone());
+
+        let ui_weak = ui_weak_vis.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                let v_str = match next {
+                    Visibility::Visible => "Visible",
+                    Visibility::Invisible => "Invisible",
+                    Visibility::Temporarily => "Temporarily",
+                };
+                ui.set_visibility(v_str.into());
+            }
         });
     });
 
-    app_handle.exit(-1);
+    let v_str = match visibility {
+        Visibility::Visible => "Visible",
+        Visibility::Invisible => "Invisible",
+        Visibility::Temporarily => "Temporarily",
+    };
+    ui.set_visibility(v_str.into());
+
+    if let Ok(hostname) = gethostname::gethostname().into_string() {
+        ui.set_hostname(hostname.into());
+    }
+
+    let ui_weak_picker = ui_weak.clone();
+    ui.on_open_file_picker(move || {
+        let ui_weak = ui_weak_picker.clone();
+        tokio::spawn(async move {
+            let files = rfd::AsyncFileDialog::new().pick_files().await;
+            if let Some(files) = files {
+                let mut paths = Vec::new();
+                for f in files {
+                    paths.push(slint::SharedString::from(f.path().to_string_lossy().into_owned()));
+                }
+
+                let _ = slint::invoke_from_event_loop({
+                    let ui_weak = ui_weak.clone();
+                    move || {
+                        if let Some(ui) = ui_weak.upgrade() {
+                            ui.set_has_outbound_payload(true);
+                            let payload = OutboundPayload { files: slint::ModelRc::new(slint::VecModel::from(paths)) };
+                            ui.set_outbound_payload(payload);
+                        }
+                    }
+                });
+            }
+        });
+    });
+
+    let state_for_cmd = app_state.clone();
+    ui.on_send_cmd(move |id, cmd| {
+        let action = match cmd.as_str() {
+            "AcceptTransfer" => Some(ChannelAction::AcceptTransfer),
+            "RejectTransfer" => Some(ChannelAction::RejectTransfer),
+            "CancelTransfer" => Some(ChannelAction::CancelTransfer),
+            _ => None,
+        };
+        if let Some(action) = action {
+            let _ = state_for_cmd.message_sender.send(ChannelMessage {
+                id: id.to_string(),
+                direction: ChannelDirection::FrontToLib,
+                action: Some(action),
+                ..Default::default()
+            });
+        }
+    });
+
+    let ui_weak_send = ui_weak.clone();
+    let state_for_send_info = app_state.clone();
+    ui.on_send_info(move |id| {
+        let ui_weak_send_inner = ui_weak_send.clone();
+        let state_for_send_inner = state_for_send_info.clone();
+        let id_str = id.to_string();
+
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui_weak_send_inner.upgrade() {
+                let payload = ui.get_outbound_payload();
+                let mut files = Vec::new();
+                for i in 0..payload.files.row_count() {
+                    if let Some(f) = payload.files.row_data(i) {
+                        files.push(f.to_string());
+                    }
+                }
+
+                if !files.is_empty() {
+                    let mut name = String::new();
+                    let mut addr = String::new();
+
+                    {
+                        let eps = state_for_send_inner.discovered_endpoints.lock().unwrap();
+                        if let Some(ep) = eps.get(&id_str) {
+                            if let Some(ep_name) = &ep.name {
+                                name = ep_name.clone();
+                            }
+                            if let Some(ip) = &ep.ip {
+                                if let Some(port) = &ep.port {
+                                    addr = format!("{}:{}", ip, port);
+                                }
+                            }
+                        }
+                    }
+
+                    if !name.is_empty() && !addr.is_empty() {
+                        let _ = state_for_send_inner.sender_file.blocking_send(SendInfo {
+                            id: id_str.clone(),
+                            name,
+                            addr,
+                            ob: LibOutboundPayload::Files(files),
+                        });
+                    }
+                }
+            }
+        });
+    });
+
+    let ui_weak_remove = ui_weak.clone();
+    let items_state_remove = items_state.clone();
+    ui.on_remove_request(move |id| {
+        let id_str = id.to_string();
+        let ui_weak_remove_inner = ui_weak_remove.clone();
+        let items_state_inner = items_state_remove.clone();
+
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui_weak_remove_inner.upgrade() {
+                let mut state = items_state_inner.lock().unwrap();
+                if let Some(i) = state.iter().position(|x| x.id == id_str) {
+                    state.remove(i);
+                }
+
+                let mut new_model = Vec::new();
+                for item in state.iter() {
+                    new_model.push(item.to_displayed_item());
+                }
+                ui.set_displayed_items(slint::ModelRc::new(slint::VecModel::from(new_model)));
+            }
+        });
+    });
+
+    ui.on_write_to_clipboard(|text| {
+        if let Ok(mut cb) = arboard::Clipboard::new() {
+            let _ = cb.set_text(text.as_str());
+        }
+    });
+
+    ui.on_clear_sending({
+        let ui_weak = ui_weak.clone();
+        move || {
+            if let Some(ui) = ui_weak.upgrade() {
+                ui.set_has_outbound_payload(false);
+                ui.set_outbound_payload(OutboundPayload { files: slint::ModelRc::new(slint::VecModel::default()) });
+            }
+        }
+    });
+
+    let state_for_shutdown = app_state.clone();
+    ui.window().on_close_requested(move || {
+        let state = state_for_shutdown.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move {
+                let _ = state.rqs.lock().unwrap().stop().await;
+            });
+        });
+
+        let _ = slint::quit_event_loop();
+
+        slint::CloseRequestResponse::HideWindow
+    });
+
+    ui.run().unwrap();
+    Ok(())
 }
