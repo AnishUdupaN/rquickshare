@@ -3,6 +3,8 @@
     windows_subsystem = "windows"
 )]
 
+slint::include_modules!();
+
 #[macro_use]
 extern crate log;
 
@@ -43,6 +45,8 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    MainWindow::new().unwrap().run().unwrap();
+
     // Define tauri async runtime to be tokio
     tauri::async_runtime::set(tokio::runtime::Handle::current());
 

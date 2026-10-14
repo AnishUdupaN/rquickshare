@@ -9,6 +9,7 @@ license = "AGPL-3.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
+slint-build = "1.8.0"
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
@@ -33,6 +34,7 @@ tauri-plugin-clipboard-manager = "2.2"
 time = { version = "0.3", features = ["formatting"] }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net", "sync", "time", "io-util"] }
 tokio-util = { version = "0.7", features = ["rt"] }
+slint = "1.8.0"
 
 [features]
 # by default Tauri runs in production mode
