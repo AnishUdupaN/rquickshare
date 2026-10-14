@@ -384,6 +384,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
     ui.set_visibility(v_str.into());
     ui.set_version(env!("CARGO_PKG_VERSION").into());
+    ui.set_dark_mode(store::get_dark_mode());
     ui.set_autostart(store::get_autostart());
     ui.set_realclose(store::get_realclose());
     ui.set_startminimized(store::get_startminimized());
@@ -394,6 +395,10 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Ok(hostname) = gethostname::gethostname().into_string() {
         ui.set_hostname(hostname.into());
     }
+
+    ui.on_set_dark_mode(|val| {
+        store::set_dark_mode(val);
+    });
 
     ui.on_set_autostart(|val| {
         store::set_autostart(val);
@@ -555,19 +560,96 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     });
 
+    #[cfg(target_os = "linux")]
+    struct RQuickShareTray {
+        ui_weak: slint::Weak<MainWindow>,
+        state: Arc<AppState>,
+    }
+
+    #[cfg(target_os = "linux")]
+    impl ksni::Tray for RQuickShareTray {
+        fn id(&self) -> String {
+            "rquickshare".into()
+        }
+        fn icon_name(&self) -> String {
+            "rquickshare".into()
+        }
+        fn title(&self) -> String {
+            "RQuickShare".into()
+        }
+        fn activate(&mut self, _x: i32, _y: i32) {
+            let ui_weak = self.ui_weak.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_weak.upgrade() {
+                    let _ = ui.show();
+                }
+            });
+        }
+        fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
+            use ksni::menu::*;
+            vec![
+                StandardItem {
+                    label: "Open RQuickShare".into(),
+                    activate: Box::new(|this: &mut Self| {
+                        let ui_weak = this.ui_weak.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_weak.upgrade() {
+                                let _ = ui.show();
+                            }
+                        });
+                    }),
+                    ..Default::default()
+                }
+                .into(),
+                MenuItem::Separator,
+                StandardItem {
+                    label: "Quit".into(),
+                    activate: Box::new(|this: &mut Self| {
+                        let state = this.state.clone();
+                        tokio::task::block_in_place(|| {
+                            tokio::runtime::Handle::current().block_on(async move {
+                                let _ = state.rqs.lock().unwrap().stop().await;
+                            });
+                        });
+                        let _ = slint::quit_event_loop();
+                    }),
+                    ..Default::default()
+                }
+                .into(),
+            ]
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    let _tray_handle = {
+        let tray = RQuickShareTray {
+            ui_weak: ui_weak.clone(),
+            state: app_state.clone(),
+        };
+        let service = ksni::TrayService::new(tray);
+        service.spawn()
+    };
+
     let state_for_shutdown = app_state.clone();
     ui.window().on_close_requested(move || {
-        let state = state_for_shutdown.clone();
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async move {
-                let _ = state.rqs.lock().unwrap().stop().await;
+        let realclose = store::get_realclose();
+        if realclose {
+            let state = state_for_shutdown.clone();
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async move {
+                    let _ = state.rqs.lock().unwrap().stop().await;
+                });
             });
-        });
 
-        let _ = slint::quit_event_loop();
+            let _ = slint::quit_event_loop();
+        }
 
         slint::CloseRequestResponse::HideWindow
     });
+
+    if store::get_startminimized() {
+        let _ = ui.hide();
+    }
 
     ui.run().unwrap();
     Ok(())

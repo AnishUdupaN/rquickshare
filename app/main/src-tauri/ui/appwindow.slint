@@ -20,12 +20,13 @@ export struct DisplayedItem {
     ack_bytes: int,
 }
 
-
 export component MainWindow inherits Window {
     title: "rquickshare";
-    width: 900px;
-    height: 600px;
-    background: #f0fdf4; // bg-green-50
+    preferred-width: 900px;
+    preferred-height: 600px;
+    min-width: 650px;
+    min-height: 450px;
+    background: root.dark_mode ? #0e1715 : #f0fdf4;
     default-font-family: "sans-serif";
 
     in property <string> hostname: "Device name";
@@ -37,7 +38,8 @@ export component MainWindow inherits Window {
     in property <[DisplayedItem]> displayed_items;
     in property <bool> discovery_running: false;
 
-    // Settings state
+    // Theme & Settings state
+    in-out property <bool> dark_mode: false;
     in-out property <bool> settings_open: false;
     in-out property <bool> autostart: true;
     in-out property <bool> realclose: false;
@@ -56,6 +58,7 @@ export component MainWindow inherits Window {
     callback set-autostart(bool);
     callback set-realclose(bool);
     callback set-startminimized(bool);
+    callback set-dark-mode(bool);
     callback select-download-path();
 
     VerticalLayout {
@@ -64,6 +67,7 @@ export component MainWindow inherits Window {
 
         // --- Heading Header (Heading.vue) ---
         HorizontalLayout {
+            vertical-stretch: 0;
             padding-left: 24px;
             padding-right: 24px;
             padding-top: 16px;
@@ -76,29 +80,29 @@ export component MainWindow inherits Window {
 
                 Text {
                     text: "Device name";
-                    font-size: 14px;
-                    color: #000000;
+                    font-size: 13px;
+                    color: root.dark_mode ? #94a3b8 : #475569;
                 }
                 Text {
                     text: root.hostname;
                     font-size: 24px;
-                    font-weight: 500;
-                    color: #000000;
+                    font-weight: 600;
+                    color: root.dark_mode ? #f8fafc : #0f172a;
                 }
             }
 
             HorizontalLayout {
-                spacing: 16px;
+                spacing: 12px;
                 alignment: center;
 
                 // Version display
                 Rectangle {
                     border-radius: 12px;
-                    background: ver_touch.has_hover && root.new_version != "" ? #00000010 : transparent;
+                    background: ver_touch.has_hover && root.new_version != "" ? (root.dark_mode ? #ffffff18 : #00000010) : transparent;
 
                     HorizontalLayout {
-                        padding-left: 8px;
-                        padding-right: 8px;
+                        padding-left: 10px;
+                        padding-right: 10px;
                         padding-top: 8px;
                         padding-bottom: 8px;
                         spacing: 8px;
@@ -107,23 +111,23 @@ export component MainWindow inherits Window {
                         if root.new_version != "": Text {
                             text: "Update available";
                             font-size: 14px;
-                            color: #16a34a;
+                            color: #22c55e;
                             font-weight: 500;
                         }
                         Text {
                             text: "v" + root.version;
                             font-size: 14px;
-                            color: #000000;
+                            color: root.dark_mode ? #cbd5e1 : #334155;
                         }
                         if root.new_version != "": Text {
                             text: "→";
-                            font-size: 18px;
-                            color: #16a34a;
+                            font-size: 16px;
+                            color: #22c55e;
                         }
                         if root.new_version != "": Text {
                             text: "v" + root.new_version;
                             font-size: 14px;
-                            color: #16a34a;
+                            color: #22c55e;
                             font-weight: 500;
                         }
                     }
@@ -137,22 +141,55 @@ export component MainWindow inherits Window {
                     }
                 }
 
+                // Dark / Light Theme Toggle Button
+                Rectangle {
+                    width: 44px;
+                    height: 44px;
+                    border-radius: 12px;
+                    background: theme_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
+                    animate background { duration: 150ms; }
+
+                    if root.dark_mode: Path {
+                        width: 22px;
+                        height: 22px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        fill: #fbbf24; // Amber sun in dark mode
+                        commands: "M 12 7 A 5 5 0 1 0 12 17 A 5 5 0 1 0 12 7 Z M 12 1 L 12 4 M 12 20 L 12 23 M 4.22 4.22 L 6.34 6.34 M 17.66 17.66 L 19.78 19.78 M 1 12 L 4 12 M 20 12 L 23 12 M 4.22 19.78 L 6.34 17.66 M 17.66 6.34 L 19.78 4.22";
+                    }
+
+                    if !root.dark_mode: Path {
+                        width: 20px;
+                        height: 20px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        fill: #334155; // Slate moon in light mode
+                        commands: "M 12 3 C 7.03 3 3 7.03 3 12 C 3 16.97 7.03 21 12 21 C 15.65 21 18.76 18.82 20.14 15.68 C 19.46 15.89 18.74 16 18 16 C 13.58 16 10 12.42 10 8 C 10 6.13 10.64 4.41 11.72 3.05 C 11.81 3.03 11.91 3.02 12 3 Z";
+                    }
+
+                    theme_touch := TouchArea {
+                        clicked => {
+                            root.dark_mode = !root.dark_mode;
+                            root.set-dark-mode(root.dark_mode);
+                        }
+                    }
+                }
+
                 // Settings button (Gear)
                 Rectangle {
                     width: 44px;
                     height: 44px;
                     border-radius: 12px;
-                    background: gear_touch.has_hover ? #00000015 : #0000000a;
+                    background: gear_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
                     animate background { duration: 150ms; }
 
-                    // SVG Gear Icon from Heading.vue
+                    // SVG Gear Icon
                     Path {
-                        width: 24px;
-                        height: 24px;
+                        width: 22px;
+                        height: 22px;
                         x: (parent.width - self.width) / 2;
                         y: (parent.height - self.height) / 2;
-                        fill: #000000;
-                        // viewBox: 0 -960 960 960 scaled to 24x24: scale factor 0.025, offset y by 24
+                        fill: root.dark_mode ? #f8fafc : #0f172a;
                         commands: "M 9.25 22 L 8.85 18.8 Q 8.525 18.675 8.237 18.5 T 7.675 18.125 L 4.7 19.375 L 1.95 14.625 L 4.525 12.675 Q 4.5 12.5 4.5 12.338 V 11.662 Q 4.5 11.5 4.525 11.325 L 1.95 9.375 L 4.7 4.625 L 7.675 5.875 Q 7.95 5.675 8.238 5.5 T 8.85 5.2 L 9.25 2 H 14.75 L 15.15 5.2 Q 15.475 5.325 15.763 5.5 T 16.325 5.875 L 19.3 4.625 L 22.05 9.375 L 19.475 11.325 Q 19.5 11.5 19.5 11.662 V 12.338 Q 19.5 12.5 19.475 12.675 L 22.05 14.625 L 19.3 19.375 L 16.325 18.125 Q 16.05 18.325 15.762 18.5 T 15.15 18.8 L 14.75 22 Z M 11 20 H 13 L 13.35 17.35 Q 14.125 17.15 14.787 16.762 T 15.975 15.825 L 18.45 16.85 L 19.425 15.15 L 17.275 13.525 Q 17.4 13.175 17.45 12.788 T 17.5 12 Q 17.5 11.6 17.45 11.212 T 17.275 10.475 L 19.425 8.85 L 18.45 7.15 L 15.975 8.2 Q 15.425 7.625 14.762 7.237 T 13.35 6.65 L 13 4 H 11 L 10.65 6.65 Q 9.875 6.85 9.213 7.237 T 8.025 8.175 L 5.55 7.15 L 4.575 8.85 L 6.725 10.45 Q 6.6 10.825 6.55 11.2 T 6.5 12 Q 6.5 12.4 6.55 12.775 T 6.725 13.525 L 4.575 15.15 L 5.55 16.85 L 8.025 15.8 Q 8.575 16.375 9.238 16.762 T 10.65 17.35 Z M 12 15.5 Q 13.45 15.5 14.475 14.475 T 15.5 12 Q 15.5 10.55 14.475 9.525 T 12 8.5 Q 10.525 8.5 9.512 9.525 T 8.5 12 Q 8.5 13.45 9.513 14.475 T 12 15.5 Z";
                     }
 
@@ -165,9 +202,15 @@ export component MainWindow inherits Window {
 
         // --- Main Section (SideMenu + Content Area) ---
         HorizontalLayout {
+            vertical-stretch: 1;
+
             // SideMenu (SideMenu.vue, w-72 = 288px)
             VerticalLayout {
                 width: 288px;
+                min-width: 260px;
+                max-width: 320px;
+                horizontal-stretch: 0;
+                vertical-stretch: 1;
                 padding-left: 24px;
                 padding-right: 16px;
                 padding-top: 12px;
@@ -178,13 +221,13 @@ export component MainWindow inherits Window {
 
                     Text {
                         text: "Visibility state";
-                        font-size: 14px;
-                        color: #000000;
+                        font-size: 13px;
+                        color: root.dark_mode ? #94a3b8 : #475569;
                     }
 
                     // Visibility Toggle Button (.btn)
                     Rectangle {
-                        background: vis_touch.has_hover ? #00000015 : #0000000a;
+                        background: vis_touch.has_hover ? (root.dark_mode ? #ffffff1c : #00000015) : (root.dark_mode ? #ffffff0e : #0000000a);
                         border-radius: 12px;
                         height: 48px;
                         animate background { duration: 150ms; }
@@ -198,15 +241,15 @@ export component MainWindow inherits Window {
                                 text: root.visibility == "Visible" ? "Always visible" : (root.visibility == "Invisible" ? "Hidden from everyone" : "Temporarily visible");
                                 font-weight: 500;
                                 font-size: 15px;
-                                color: #000000;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
                                 vertical-alignment: center;
                             }
 
                             // Right Arrow Chevron (SideMenu.vue)
                             Path {
-                                width: 24px;
-                                height: 24px;
-                                fill: #000000;
+                                width: 20px;
+                                height: 20px;
+                                fill: root.dark_mode ? #94a3b8 : #475569;
                                 commands: "M 12.6 12 L 8 7.4 L 9.4 6 L 15.4 12 L 9.4 18 L 8 16.6 Z";
                             }
                         }
@@ -219,28 +262,29 @@ export component MainWindow inherits Window {
                     Text {
                         text: root.visibility == "Visible" ? "Nearby devices can share files with you, but you'll always be notified and have to approve each transfer before receiving it." : (root.visibility == "Invisible" ? "No one can see your device at the moment. However, keep in mind that if another device has saved yours before, it might still attempt to start a transfer with you.\n\nYou will get a notification when someone nearby is sharing giving you the ability to become visible for 1 minute." : "You are temporarily visible to everyone.");
                         font-size: 12px;
-                        color: #000000;
+                        color: root.dark_mode ? #94a3b8 : #64748b;
                         wrap: word-wrap;
                     }
                 }
 
                 if root.has_outbound_payload: VerticalLayout {
                     alignment: space-between;
+                    vertical-stretch: 1;
 
                     VerticalLayout {
                         spacing: 12px;
 
                         Text {
                             text: "Sharing " + root.outbound_payload.files.length + " file" + (root.outbound_payload.files.length == 1 ? "" : "s");
-                            font-size: 14px;
-                            color: #000000;
+                            font-size: 13px;
+                            color: root.dark_mode ? #94a3b8 : #475569;
                         }
 
                         // File Icon square (bg-white w-32 h-32 rounded-2xl)
                         Rectangle {
                             width: 128px;
                             height: 128px;
-                            background: #ffffff;
+                            background: root.dark_mode ? #1b2924 : #ffffff;
                             border-radius: 16px;
 
                             Path {
@@ -248,7 +292,7 @@ export component MainWindow inherits Window {
                                 height: 32px;
                                 x: (parent.width - self.width) / 2;
                                 y: (parent.height - self.height) / 2;
-                                fill: #000000;
+                                fill: root.dark_mode ? #4ade80 : #16a34a;
                                 commands: "M 6 22 Q 5.175 22 4.587 21.413 T 4 20 V 4 Q 4 3.175 4.588 2.587 T 6 2 H 14 L 20 8 V 20 Q 20 20.825 19.413 21.413 T 18 22 Z M 13 9 V 4 H 6 V 20 H 18 V 9 Z";
                             }
                         }
@@ -256,21 +300,21 @@ export component MainWindow inherits Window {
                         for file in root.outbound_payload.files: Text {
                             text: file;
                             font-size: 13px;
-                            color: #000000;
+                            color: root.dark_mode ? #f8fafc : #0f172a;
                             overflow: elide;
                         }
 
                         Text {
                             text: "Make sure both devices are unlocked, close together, and have bluetooth turned on. Device you're sharing with need Quick Share turned on and visible to you.";
                             font-size: 12px;
-                            color: #000000;
+                            color: root.dark_mode ? #94a3b8 : #64748b;
                             wrap: word-wrap;
                         }
                     }
 
                     // Cancel button
                     Rectangle {
-                        background: cancel_touch.has_hover ? #00000015 : #0000000a;
+                        background: cancel_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
                         border-radius: 12px;
                         height: 44px;
                         width: 90px;
@@ -280,7 +324,7 @@ export component MainWindow inherits Window {
                             text: "Cancel";
                             font-weight: 500;
                             font-size: 14px;
-                            color: #000000;
+                            color: root.dark_mode ? #f8fafc : #0f172a;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                             width: 100%;
@@ -296,138 +340,135 @@ export component MainWindow inherits Window {
 
             // --- Main Content Area (rounded-tl-[3rem] bg-white) ---
             Rectangle {
-                background: #ffffff;
+                horizontal-stretch: 1;
+                vertical-stretch: 1;
                 border-top-left-radius: 48px;
+                background: root.dark_mode ? #16221e : #ffffff;
+                clip: true;
 
                 VerticalLayout {
-                    padding: 48px;
+                    width: 100%;
+                    height: 100%;
+                    padding-left: 40px;
+                    padding-right: 40px;
+                    padding-top: 36px;
+                    padding-bottom: 32px;
                     spacing: 16px;
 
                     Text {
+                        vertical-stretch: 0;
                         text: root.displayed_items.length == 0 ? (root.has_outbound_payload ? "Ready to receive / send" : "Ready to receive") : "Nearby devices";
-                        font-weight: 500;
+                        font-weight: 600;
                         font-size: 20px;
-                        color: #000000;
+                        color: root.dark_mode ? #f8fafc : #0f172a;
                     }
 
-                    // Radar pulse indicator when waiting to receive
-                    if root.displayed_items.length == 0 && !root.has_outbound_payload: Rectangle {
-                        height: 120px;
+                    // Empty state (no devices / transfers active)
+                    if root.displayed_items.length == 0 && !root.has_outbound_payload: VerticalLayout {
+                        vertical-stretch: 1;
+                        spacing: 20px;
 
-                        // Concentric circles representing pulse
+                        // Radar pulse indicator
                         Rectangle {
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                            width: 80px;
-                            height: 80px;
-                            border-radius: 40px;
-                            background: #00000008;
-                        }
-                        Rectangle {
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                            width: 52px;
-                            height: 52px;
-                            border-radius: 26px;
-                            background: #00000012;
-                        }
-                        Rectangle {
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                            width: 20px;
-                            height: 20px;
-                            border-radius: 10px;
-                            background: #000000;
-                        }
-                    }
+                            height: 110px;
+                            vertical-stretch: 0;
 
-                    // Drop files box (ContentStatus.vue)
-                    if root.displayed_items.length == 0 && !root.has_outbound_payload: Rectangle {
-                        border-width: 1px;
-                        border-color: #e2e8f0;
-                        border-radius: 16px;
-                        background: drop_touch.has_hover ? #f0fdf4 : transparent;
-                        animate background { duration: 150ms; }
-
-                        VerticalLayout {
-                            padding: 24px;
-                            alignment: center;
-                            spacing: 8px;
-
-                            Path {
-                                width: 32px;
-                                height: 32px;
-                                fill: #000000;
-                                commands: "M 11 16 V 7.85 L 8.4 10.45 L 7 9 L 12 4 L 17 9 L 15.6 10.45 L 13 7.85 V 16 Z M 6 20 Q 5.175 20 4.587 19.413 T 4 18 V 15 H 6 V 18 H 18 V 15 H 20 V 18 Q 20 18.825 19.413 19.413 T 18 20 Z";
-                            }
-
-                            Text {
-                                text: "Drop files to send";
-                                font-weight: 500;
-                                font-size: 15px;
-                                color: #000000;
-                                horizontal-alignment: center;
-                            }
-
-                            // Select button
                             Rectangle {
-                                background: #0000000a;
-                                border-radius: 12px;
-                                height: 44px;
-                                width: 110px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                width: 84px;
+                                height: 84px;
+                                border-radius: 42px;
+                                background: root.dark_mode ? #ffffff0d : #00000008;
+                            }
+                            Rectangle {
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                width: 54px;
+                                height: 54px;
+                                border-radius: 27px;
+                                background: root.dark_mode ? #ffffff1a : #00000012;
+                            }
+                            Rectangle {
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                width: 22px;
+                                height: 22px;
+                                border-radius: 11px;
+                                background: root.dark_mode ? #22c55e : #0f172a;
+                            }
+                        }
 
-                                HorizontalLayout {
-                                    padding-left: 14px;
-                                    padding-right: 14px;
-                                    spacing: 8px;
-                                    alignment: center;
+                        // Drop files box (ContentStatus.vue)
+                        Rectangle {
+                            vertical-stretch: 1;
+                            min-height: 160px;
+                            border-width: 1px;
+                            border-color: root.dark_mode ? #2c3e37 : #e2e8f0;
+                            border-radius: 16px;
+                            background: drop_touch.has_hover ? (root.dark_mode ? #1d2c26 : #f0fdf4) : (root.dark_mode ? #131c19 : transparent);
+                            animate background { duration: 150ms; }
 
-                                    Path {
-                                        width: 18px;
-                                        height: 18px;
-                                        fill: #000000;
-                                        commands: "M 11 13 H 5 V 11 H 11 V 5 H 13 V 11 H 19 V 13 H 13 V 19 H 11 Z";
-                                    }
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 10px;
 
-                                    Text {
-                                        text: "Select";
-                                        font-weight: 500;
-                                        font-size: 14px;
-                                        color: #000000;
-                                        vertical-alignment: center;
-                                    }
+                                Path {
+                                    width: 36px;
+                                    height: 36px;
+                                    fill: root.dark_mode ? #4ade80 : #0f172a;
+                                    commands: "M 11 16 V 7.85 L 8.4 10.45 L 7 9 L 12 4 L 17 9 L 15.6 10.45 L 13 7.85 V 16 Z M 6 20 Q 5.175 20 4.588 19.413 T 4 18 V 15 H 6 V 18 H 18 V 15 H 20 V 18 Q 20 18.825 19.413 19.413 T 18 20 Z";
+                                }
+
+                                Text {
+                                    text: "Drop files here";
+                                    font-size: 15px;
+                                    font-weight: 500;
+                                    color: root.dark_mode ? #f8fafc : #0f172a;
+                                    horizontal-alignment: center;
+                                }
+
+                                Text {
+                                    text: "Or select files to send";
+                                    font-size: 13px;
+                                    color: root.dark_mode ? #4ade80 : #16a34a;
+                                    horizontal-alignment: center;
                                 }
                             }
-                        }
 
-                        drop_touch := TouchArea {
-                            clicked => { root.open-file-picker(); }
+                            drop_touch := TouchArea {
+                                clicked => { root.open-file-picker(); }
+                            }
                         }
                     }
 
                     // Displayed items list (devices & transfers)
-                    ScrollView {
+                    if root.displayed_items.length > 0 || root.has_outbound_payload: ScrollView {
+                        vertical-stretch: 1;
+
                         VerticalLayout {
                             spacing: 16px;
 
                             for item in root.displayed_items: Rectangle {
-                                background: #dcfce7; // bg-green-100
-                                border-radius: 24px; // rounded-3xl
+                                background: root.dark_mode ? #1d2c26 : #dcfce7;
+                                border-width: 1px;
+                                border-color: root.dark_mode ? #2b4036 : #bbf7d0;
+                                border-radius: 20px;
 
                                 HorizontalLayout {
                                     padding: 16px;
-                                    spacing: 24px;
+                                    spacing: 20px;
 
-                                    // ItemSide (w-[62px] h-[62px])
+                                    // ItemSide
                                     VerticalLayout {
                                         alignment: center;
                                         spacing: 4px;
 
                                         Rectangle {
-                                            width: 56px;
-                                            height: 56px;
-                                            border-radius: 28px;
-                                            background: #ffffff;
+                                            width: 54px;
+                                            height: 54px;
+                                            border-radius: 27px;
+                                            background: root.dark_mode ? #141f1b : #ffffff;
 
                                             // Device icon SVG
                                             if item.state == "Finished": Path {
@@ -435,7 +476,7 @@ export component MainWindow inherits Window {
                                                 height: 24px;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
-                                                fill: #16a34a;
+                                                fill: #22c55e;
                                                 commands: "M 9 17.2 L 3.4 11.6 L 4.8 10.2 L 9 14.4 L 19.2 4.2 L 20.6 5.6 Z";
                                             }
 
@@ -444,7 +485,7 @@ export component MainWindow inherits Window {
                                                 height: 24px;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
-                                                fill: #000000;
+                                                fill: root.dark_mode ? #f8fafc : #0f172a;
                                                 commands: "M 7 23 Q 6.175 23 5.587 22.413 T 5 21 V 3 Q 5 2.175 5.587 1.587 T 7 1 H 17 Q 17.825 1 18.413 1.587 T 19 3 V 21 Q 19 21.825 18.413 22.413 T 17 23 Z M 7 18 H 17 V 5 H 7 Z";
                                             }
 
@@ -453,7 +494,7 @@ export component MainWindow inherits Window {
                                                 height: 24px;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
-                                                fill: #000000;
+                                                fill: root.dark_mode ? #f8fafc : #0f172a;
                                                 commands: "M 0 20 V 18 H 4 V 6 Q 4 5.175 4.587 4.587 T 6 4 H 18 Q 18.825 4 19.413 4.587 T 20 6 V 18 H 24 V 20 Z M 6 16 H 18 V 6 H 6 Z";
                                             }
 
@@ -462,8 +503,8 @@ export component MainWindow inherits Window {
                                                 height: 24px;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
-                                                fill: #000000;
-                                                commands: "M 3 20 Q 2.175 20 1.587 19.413 T 1 18 V 6 Q 1 5.175 1.587 4.587 T 3 4 H 21 Q 21.825 4 22.413 4.587 T 23 6 V 18 Q 23 18.825 22.413 19.413 T 21 20 Z M 5 18 H 19 V 6 H 5 Z";
+                                                fill: root.dark_mode ? #f8fafc : #0f172a;
+                                                commands: "M 4 23 Q 3.175 23 2.587 22.413 T 2 21 V 3 Q 2 2.175 2.588 1.587 T 4 1 H 20 Q 20.825 1 21.413 1.587 T 22 3 V 21 Q 22 21.825 21.413 22.413 T 20 23 Z M 4 19 H 20 V 5 H 4 Z";
                                             }
 
                                             if item.state != "Finished" && item.device_type != "Phone" && item.device_type != "Laptop" && item.device_type != "Tablet": Path {
@@ -471,196 +512,190 @@ export component MainWindow inherits Window {
                                                 height: 24px;
                                                 x: (parent.width - self.width) / 2;
                                                 y: (parent.height - self.height) / 2;
-                                                fill: #000000;
-                                                commands: "M 2 20 V 4 H 22 V 20 Z M 4 16 H 20 V 6 H 4 Z";
+                                                fill: root.dark_mode ? #f8fafc : #0f172a;
+                                                commands: "M 2 20 V 4 Q 2 3.175 2.587 2.588 T 4 2 H 20 Q 20.825 2 21.413 2.588 T 22 4 V 20 Z M 4 18 H 20 V 4 H 4 Z";
                                             }
                                         }
 
-                                        if (item.state == "WaitingForUserConsent" || item.state == "SentIntroduction") && item.pin_code != "": Text {
-                                            text: "🛡 " + item.pin_code;
-                                            font-size: 13px;
-                                            font-weight: 500;
-                                            color: #000000;
+                                        if item.pin_code != "": Text {
+                                            text: item.pin_code;
+                                            font-size: 12px;
+                                            font-weight: 600;
+                                            color: root.dark_mode ? #4ade80 : #15803d;
                                             horizontal-alignment: center;
                                         }
                                     }
 
-                                    // Content & Controls
+                                    // ItemBody
                                     VerticalLayout {
-                                        alignment: item.state == "" ? center : stretch;
-                                        spacing: 4px;
+                                        alignment: center;
+                                        spacing: 6px;
+                                        horizontal-stretch: 1;
 
-                                        Text {
-                                            text: item.name;
-                                            font-weight: 500;
-                                            font-size: 16px;
-                                            color: #000000;
+                                        HorizontalLayout {
+                                            alignment: space-between;
+
+                                            Text {
+                                                text: item.name;
+                                                font-weight: 600;
+                                                font-size: 16px;
+                                                color: root.dark_mode ? #f8fafc : #0f172a;
+                                                overflow: elide;
+                                            }
+
+                                            if item.endpoint: Text {
+                                                text: "Click to send";
+                                                font-size: 12px;
+                                                color: root.dark_mode ? #4ade80 : #16a34a;
+                                                vertical-alignment: center;
+                                            }
                                         }
 
+                                        // State: WaitingForUserConsent
                                         if item.state == "WaitingForUserConsent": VerticalLayout {
                                             spacing: 8px;
 
                                             Text {
-                                                text: "Wants to share " + (item.files.length > 0 ? (item.files.length + " file(s)") : (item.text_description != "" ? item.text_description : "some file(s)."));
-                                                font-size: 14px;
-                                                color: #000000;
+                                                text: item.files.length > 0 ? ("Wants to share " + item.files.length + " file" + (item.files.length == 1 ? "" : "s")) : ("Wants to share " + item.text_description);
+                                                font-size: 13px;
+                                                color: root.dark_mode ? #cbd5e1 : #334155;
                                             }
 
                                             HorizontalLayout {
-                                                alignment: end;
                                                 spacing: 12px;
 
+                                                // Accept button
                                                 Rectangle {
-                                                    background: #ffffff;
-                                                    border-radius: 12px;
-                                                    height: 38px;
+                                                    background: #22c55e;
+                                                    border-radius: 10px;
+                                                    height: 36px;
                                                     HorizontalLayout {
                                                         padding-left: 14px;
                                                         padding-right: 14px;
-                                                        Text { text: "Accept"; color: #000000; font-weight: 500; vertical-alignment: center; }
+                                                        Text { text: "Accept"; color: #ffffff; font-weight: 600; vertical-alignment: center; }
                                                     }
                                                     TouchArea { clicked => { root.send-cmd(item.id, "AcceptTransfer"); } }
                                                 }
 
+                                                // Reject button
                                                 Rectangle {
-                                                    background: #ffffff;
-                                                    border-radius: 12px;
-                                                    height: 38px;
+                                                    background: root.dark_mode ? #263831 : #ffffff;
+                                                    border-radius: 10px;
+                                                    height: 36px;
                                                     HorizontalLayout {
                                                         padding-left: 14px;
                                                         padding-right: 14px;
-                                                        Text { text: "Decline"; color: #000000; font-weight: 500; vertical-alignment: center; }
+                                                        Text { text: "Decline"; color: root.dark_mode ? #f8fafc : #0f172a; font-weight: 500; vertical-alignment: center; }
                                                     }
                                                     TouchArea { clicked => { root.send-cmd(item.id, "RejectTransfer"); } }
                                                 }
                                             }
                                         }
 
-                                        if item.state == "SentIntroduction" || item.state == "SendingFiles" || item.state == "ReceivingFiles": VerticalLayout {
+                                        // State: Progress
+                                        if item.state == "SendingFiles" || item.state == "ReceivingFiles": VerticalLayout {
                                             spacing: 6px;
 
-                                            Text {
-                                                text: item.state == "ReceivingFiles" ? "Receiving..." : "Sending...";
-                                                font-size: 14px;
-                                                color: #000000;
-                                            }
+                                            // Progress bar
+                                            Rectangle {
+                                                height: 8px;
+                                                border-radius: 4px;
+                                                background: root.dark_mode ? #ffffff15 : #00000015;
 
-                                            for f in item.files: Text {
-                                                text: f;
-                                                font-size: 13px;
-                                                color: #000000;
-                                                overflow: elide;
+                                                Rectangle {
+                                                    x: 0px;
+                                                    y: 0px;
+                                                    height: 100%;
+                                                    border-radius: 4px;
+                                                    background: #22c55e;
+                                                    width: item.total_bytes > 0 ? parent.width * (item.ack_bytes / item.total_bytes) : 0px;
+                                                }
                                             }
 
                                             HorizontalLayout {
-                                                alignment: end;
+                                                alignment: space-between;
+
+                                                Text {
+                                                    text: item.state == "SendingFiles" ? "Sending..." : "Receiving...";
+                                                    font-size: 12px;
+                                                    color: root.dark_mode ? #cbd5e1 : #475569;
+                                                }
 
                                                 Rectangle {
-                                                    background: #ffffff;
-                                                    border-radius: 12px;
-                                                    height: 38px;
+                                                    background: root.dark_mode ? #263831 : #ffffff;
+                                                    border-radius: 10px;
+                                                    height: 32px;
                                                     HorizontalLayout {
-                                                        padding-left: 14px;
-                                                        padding-right: 14px;
-                                                        Text { text: "Cancel"; color: #000000; font-weight: 500; vertical-alignment: center; }
+                                                        padding-left: 12px;
+                                                        padding-right: 12px;
+                                                        Text { text: "Cancel"; color: root.dark_mode ? #f8fafc : #0f172a; font-weight: 500; font-size: 13px; vertical-alignment: center; }
                                                     }
                                                     TouchArea { clicked => { root.send-cmd(item.id, "CancelTransfer"); } }
                                                 }
                                             }
                                         }
 
+                                        // State: Finished
                                         if item.state == "Finished": VerticalLayout {
-                                            spacing: 6px;
+                                            spacing: 8px;
 
                                             Text {
-                                                text: item.text_type != "" ? "Received text" : "Received files";
-                                                font-size: 14px;
-                                                color: #000000;
-                                            }
-
-                                            for f in item.files: Text {
-                                                text: f;
+                                                text: item.destination != "" ? "Files received successfully" : "Transfer complete";
                                                 font-size: 13px;
-                                                color: #000000;
-                                                overflow: elide;
-                                            }
-
-                                            if item.destination != "": Text {
-                                                text: "Saved to " + item.destination;
-                                                font-size: 13px;
-                                                color: #000000;
-                                                overflow: elide;
-                                            }
-
-                                            if item.text_payload != "": Text {
-                                                text: item.text_payload;
-                                                font-size: 13px;
-                                                color: #000000;
-                                                overflow: elide;
+                                                color: root.dark_mode ? #cbd5e1 : #334155;
                                             }
 
                                             HorizontalLayout {
                                                 alignment: end;
-                                                spacing: 12px;
+                                                spacing: 8px;
 
-                                                if item.destination != "" || (item.text_type == "Url" && item.text_payload != ""): Rectangle {
-                                                    background: #ffffff;
-                                                    border-radius: 12px;
-                                                    height: 38px;
+                                                if item.text_payload != "": Rectangle {
+                                                    background: root.dark_mode ? #263831 : #ffffff;
+                                                    border-radius: 10px;
+                                                    height: 34px;
                                                     HorizontalLayout {
-                                                        padding-left: 14px;
-                                                        padding-right: 14px;
-                                                        Text { text: "Open"; color: #000000; font-weight: 500; vertical-alignment: center; }
-                                                    }
-                                                    TouchArea { clicked => { root.open-url(item.destination != "" ? item.destination : item.text_payload); } }
-                                                }
-
-                                                if item.text_type != "" && item.text_payload != "": Rectangle {
-                                                    background: #ffffff;
-                                                    border-radius: 12px;
-                                                    height: 38px;
-                                                    HorizontalLayout {
-                                                        padding-left: 14px;
-                                                        padding-right: 14px;
-                                                        Text { text: "Copy"; color: #000000; font-weight: 500; vertical-alignment: center; }
+                                                        padding-left: 12px;
+                                                        padding-right: 12px;
+                                                        Text { text: "Copy"; color: root.dark_mode ? #f8fafc : #0f172a; font-weight: 500; vertical-alignment: center; }
                                                     }
                                                     TouchArea { clicked => { root.write-to-clipboard(item.text_payload); } }
                                                 }
 
                                                 Rectangle {
-                                                    background: #ffffff;
-                                                    border-radius: 12px;
-                                                    height: 38px;
+                                                    background: root.dark_mode ? #263831 : #ffffff;
+                                                    border-radius: 10px;
+                                                    height: 34px;
                                                     HorizontalLayout {
-                                                        padding-left: 14px;
-                                                        padding-right: 14px;
-                                                        Text { text: "Clear"; color: #000000; font-weight: 500; vertical-alignment: center; }
+                                                        padding-left: 12px;
+                                                        padding-right: 12px;
+                                                        Text { text: "Clear"; color: root.dark_mode ? #f8fafc : #0f172a; font-weight: 500; vertical-alignment: center; }
                                                     }
                                                     TouchArea { clicked => { root.remove-request(item.id); } }
                                                 }
                                             }
                                         }
 
+                                        // State: Cancelled / Rejected / Disconnected
                                         if item.state == "Cancelled" || item.state == "Rejected" || item.state == "Disconnected": VerticalLayout {
                                             spacing: 6px;
 
                                             Text {
                                                 text: item.state == "Cancelled" ? "Transfer cancelled" : (item.state == "Rejected" ? "Transfer rejected" : "Unexpected disconnection");
-                                                font-size: 14px;
-                                                color: #000000;
+                                                font-size: 13px;
+                                                color: root.dark_mode ? #cbd5e1 : #475569;
                                             }
 
                                             HorizontalLayout {
                                                 alignment: end;
 
                                                 Rectangle {
-                                                    background: #ffffff;
-                                                    border-radius: 12px;
-                                                    height: 38px;
+                                                    background: root.dark_mode ? #263831 : #ffffff;
+                                                    border-radius: 10px;
+                                                    height: 34px;
                                                     HorizontalLayout {
-                                                        padding-left: 14px;
-                                                        padding-right: 14px;
-                                                        Text { text: "Clear"; color: #000000; font-weight: 500; vertical-alignment: center; }
+                                                        padding-left: 12px;
+                                                        padding-right: 12px;
+                                                        Text { text: "Clear"; color: root.dark_mode ? #f8fafc : #0f172a; font-weight: 500; vertical-alignment: center; }
                                                     }
                                                     TouchArea { clicked => { root.remove-request(item.id); } }
                                                 }
@@ -680,25 +715,27 @@ export component MainWindow inherits Window {
         }
     }
 
-    // --- Settings Modal Dialog Overlay (1:1 with SettingsModal.vue) ---
+    // --- Settings Modal Dialog Overlay ---
     if root.settings_open: Rectangle {
         width: 100%;
         height: 100%;
-        background: #00000040; // bg-black bg-opacity-25
+        background: #00000070;
 
         TouchArea {
             // Block background clicks
         }
 
         Rectangle {
-            width: 384px; // w-[24rem]
-            background: #ffffff;
-            border-radius: 16px; // rounded-xl
+            width: 400px;
+            background: root.dark_mode ? #182420 : #ffffff;
+            border-width: 1px;
+            border-color: root.dark_mode ? #2b3e36 : #f1f5f9;
+            border-radius: 16px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
 
             VerticalLayout {
-                padding: 16px; // p-4
+                padding: 20px;
                 spacing: 16px;
 
                 // Title and Close button
@@ -707,24 +744,24 @@ export component MainWindow inherits Window {
 
                     Text {
                         text: "Settings";
-                        font-weight: 500;
+                        font-weight: 600;
                         font-size: 20px;
-                        color: #000000;
+                        color: root.dark_mode ? #f8fafc : #0f172a;
                         vertical-alignment: center;
                     }
 
                     Rectangle {
-                        background: close_touch.has_hover ? #00000015 : #0000000a;
-                        border-radius: 12px;
-                        height: 38px;
+                        background: close_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
+                        border-radius: 10px;
+                        height: 34px;
                         HorizontalLayout {
                             padding-left: 12px;
                             padding-right: 12px;
                             Text {
                                 text: "Close";
                                 font-weight: 500;
-                                font-size: 14px;
-                                color: #000000;
+                                font-size: 13px;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
                                 vertical-alignment: center;
                             }
                         }
@@ -734,15 +771,15 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                // Options list (py-4 flex flex-col)
+                // Options list
                 VerticalLayout {
                     spacing: 4px;
 
                     // Option 1: Start on boot
                     Rectangle {
-                        border-radius: 12px;
-                        background: opt1_touch.has_hover ? #0000000a : transparent;
-                        height: 48px;
+                        border-radius: 10px;
+                        background: opt1_touch.has_hover ? (root.dark_mode ? #ffffff0d : #0000000a) : transparent;
+                        height: 44px;
 
                         HorizontalLayout {
                             padding-left: 12px;
@@ -752,7 +789,7 @@ export component MainWindow inherits Window {
                             Text {
                                 text: "Start on boot";
                                 font-size: 14px;
-                                color: #000000;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
                                 vertical-alignment: center;
                             }
 
@@ -762,14 +799,14 @@ export component MainWindow inherits Window {
                                 height: 22px;
                                 border-radius: 6px;
                                 border-width: 1px;
-                                border-color: root.autostart ? #86efac : #cbd5e1;
-                                background: root.autostart ? #bbf7d0 : #ffffff;
+                                border-color: root.autostart ? #22c55e : (root.dark_mode ? #384e44 : #cbd5e1);
+                                background: root.autostart ? #22c55e : (root.dark_mode ? #22322c : #ffffff);
                                 y: (parent.height - self.height) / 2;
 
                                 if root.autostart: Text {
                                     text: "✓";
-                                    font-size: 14px;
-                                    color: #000000;
+                                    font-size: 13px;
+                                    color: #ffffff;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                     width: 100%;
@@ -788,9 +825,9 @@ export component MainWindow inherits Window {
 
                     // Option 2: Keep running on close
                     Rectangle {
-                        border-radius: 12px;
-                        background: opt2_touch.has_hover ? #0000000a : transparent;
-                        height: 48px;
+                        border-radius: 10px;
+                        background: opt2_touch.has_hover ? (root.dark_mode ? #ffffff0d : #0000000a) : transparent;
+                        height: 44px;
 
                         HorizontalLayout {
                             padding-left: 12px;
@@ -800,7 +837,7 @@ export component MainWindow inherits Window {
                             Text {
                                 text: "Keep running on close";
                                 font-size: 14px;
-                                color: #000000;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
                                 vertical-alignment: center;
                             }
 
@@ -809,14 +846,14 @@ export component MainWindow inherits Window {
                                 height: 22px;
                                 border-radius: 6px;
                                 border-width: 1px;
-                                border-color: !root.realclose ? #86efac : #cbd5e1;
-                                background: !root.realclose ? #bbf7d0 : #ffffff;
+                                border-color: !root.realclose ? #22c55e : (root.dark_mode ? #384e44 : #cbd5e1);
+                                background: !root.realclose ? #22c55e : (root.dark_mode ? #22322c : #ffffff);
                                 y: (parent.height - self.height) / 2;
 
                                 if !root.realclose: Text {
                                     text: "✓";
-                                    font-size: 14px;
-                                    color: #000000;
+                                    font-size: 13px;
+                                    color: #ffffff;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                     width: 100%;
@@ -835,9 +872,9 @@ export component MainWindow inherits Window {
 
                     // Option 3: Start minimized
                     Rectangle {
-                        border-radius: 12px;
-                        background: opt3_touch.has_hover ? #0000000a : transparent;
-                        height: 48px;
+                        border-radius: 10px;
+                        background: opt3_touch.has_hover ? (root.dark_mode ? #ffffff0d : #0000000a) : transparent;
+                        height: 44px;
 
                         HorizontalLayout {
                             padding-left: 12px;
@@ -847,7 +884,7 @@ export component MainWindow inherits Window {
                             Text {
                                 text: "Start minimized";
                                 font-size: 14px;
-                                color: #000000;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
                                 vertical-alignment: center;
                             }
 
@@ -856,14 +893,14 @@ export component MainWindow inherits Window {
                                 height: 22px;
                                 border-radius: 6px;
                                 border-width: 1px;
-                                border-color: root.startminimized ? #86efac : #cbd5e1;
-                                background: root.startminimized ? #bbf7d0 : #ffffff;
+                                border-color: root.startminimized ? #22c55e : (root.dark_mode ? #384e44 : #cbd5e1);
+                                background: root.startminimized ? #22c55e : (root.dark_mode ? #22322c : #ffffff);
                                 y: (parent.height - self.height) / 2;
 
                                 if root.startminimized: Text {
                                     text: "✓";
-                                    font-size: 14px;
-                                    color: #000000;
+                                    font-size: 13px;
+                                    color: #ffffff;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                     width: 100%;
@@ -880,11 +917,58 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Option 4: Change download folder
+                    // Option 4: Dark mode
                     Rectangle {
-                        border-radius: 12px;
-                        background: opt4_touch.has_hover ? #0000000a : transparent;
-                        height: 56px;
+                        border-radius: 10px;
+                        background: opt_dark_touch.has_hover ? (root.dark_mode ? #ffffff0d : #0000000a) : transparent;
+                        height: 44px;
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: space-between;
+
+                            Text {
+                                text: "Dark mode";
+                                font-size: 14px;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
+                                vertical-alignment: center;
+                            }
+
+                            Rectangle {
+                                width: 22px;
+                                height: 22px;
+                                border-radius: 6px;
+                                border-width: 1px;
+                                border-color: root.dark_mode ? #22c55e : (root.dark_mode ? #384e44 : #cbd5e1);
+                                background: root.dark_mode ? #22c55e : (root.dark_mode ? #22322c : #ffffff);
+                                y: (parent.height - self.height) / 2;
+
+                                if root.dark_mode: Text {
+                                    text: "✓";
+                                    font-size: 13px;
+                                    color: #ffffff;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    width: 100%;
+                                    height: 100%;
+                                }
+                            }
+                        }
+
+                        opt_dark_touch := TouchArea {
+                            clicked => {
+                                root.dark_mode = !root.dark_mode;
+                                root.set-dark-mode(root.dark_mode);
+                            }
+                        }
+                    }
+
+                    // Option 5: Change download folder
+                    Rectangle {
+                        border-radius: 10px;
+                        background: opt4_touch.has_hover ? (root.dark_mode ? #ffffff0d : #0000000a) : transparent;
+                        height: 52px;
 
                         VerticalLayout {
                             padding-left: 12px;
@@ -895,13 +979,13 @@ export component MainWindow inherits Window {
                             Text {
                                 text: "Change download folder";
                                 font-size: 14px;
-                                color: #000000;
+                                color: root.dark_mode ? #f8fafc : #0f172a;
                             }
 
                             Text {
                                 text: root.download_path != "" ? ("> " + root.download_path) : "> OS User's download folder";
                                 font-size: 12px;
-                                color: #64748b;
+                                color: root.dark_mode ? #94a3b8 : #64748b;
                                 overflow: elide;
                             }
                         }

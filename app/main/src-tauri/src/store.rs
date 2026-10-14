@@ -13,6 +13,8 @@ pub struct AppSettings {
     pub visibility: u8,
     #[serde(default)]
     pub startminimized: bool,
+    #[serde(default)]
+    pub dark_mode: bool,
     pub port: Option<u32>,
     pub download_path: Option<String>,
     pub debug_level: Option<String>,
@@ -29,12 +31,14 @@ impl Default for AppSettings {
             realclose: false,
             visibility: Visibility::Visible as u8,
             startminimized: false,
+            dark_mode: false,
             port: None,
             download_path: None,
             debug_level: None,
         }
     }
 }
+
 
 fn get_config_path() -> PathBuf {
     let proj_dirs = ProjectDirs::from("dev", "mandre", "rquickshare").unwrap();
@@ -122,10 +126,22 @@ pub fn set_startminimized(startminimized: bool) {
     save_settings(&settings);
 }
 
+pub fn get_dark_mode() -> bool {
+    get_settings().dark_mode
+}
+
+pub fn set_dark_mode(dark_mode: bool) {
+    let mut settings = get_settings();
+    settings.dark_mode = dark_mode;
+    save_settings(&settings);
+}
+
 pub fn set_download_path(path: Option<String>) {
     let mut settings = get_settings();
     settings.download_path = path;
     save_settings(&settings);
 }
+
+
 
 
