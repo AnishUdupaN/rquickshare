@@ -30,7 +30,7 @@ arboard = "3.6.1"
 rfd = "0.17.2"
 directories = "6.0.0"
 gethostname = "1.1.0"
-ksni = { version = "0.3.6", default-features = false, features = ["async-io"] }
+ksni = { version = "0.3.6", default-features = false, features = ["async-io", "blocking"] }
 
 [features]
 # by default Tauri runs in production mode

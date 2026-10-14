@@ -622,12 +622,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
     #[cfg(target_os = "linux")]
     let _tray_handle = {
+        use ksni::blocking::TrayMethods;
         let tray = RQuickShareTray {
             ui_weak: ui_weak.clone(),
             state: app_state.clone(),
         };
-        let service = ksni::TrayService::new(tray);
-        service.spawn()
+        tray.spawn().ok()
     };
 
     let state_for_shutdown = app_state.clone();
