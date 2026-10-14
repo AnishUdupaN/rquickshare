@@ -73,20 +73,57 @@ impl ItemData {
     }
 }
 
+fn format_file_size(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    const MB: f64 = KB * 1024.0;
+    const GB: f64 = MB * 1024.0;
+
+    let b = bytes as f64;
+    if b >= GB {
+        format!("{:.1} GB", b / GB)
+    } else if b >= MB {
+        format!("{:.1} MB", b / MB)
+    } else if b >= KB {
+        format!("{:.1} KB", b / KB)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
 fn make_outbound_payload(paths: Vec<slint::SharedString>) -> OutboundPayload {
-    let names: Vec<slint::SharedString> = paths
-        .iter()
-        .map(|f| {
-            std::path::Path::new(f.as_str())
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| f.to_string())
-                .into()
-        })
-        .collect();
+    let mut names = Vec::new();
+    let mut details = Vec::new();
+    let mut total_bytes: u64 = 0;
+
+    for f in &paths {
+        let std_path = std::path::Path::new(f.as_str());
+        let name = std_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| f.to_string());
+
+        let size = std::fs::metadata(std_path).map(|m| m.len()).unwrap_or(0);
+        total_bytes += size;
+
+        names.push(slint::SharedString::from(name.clone()));
+        details.push(OutboundFile {
+            name: slint::SharedString::from(name),
+            path: f.clone(),
+            size_formatted: slint::SharedString::from(format_file_size(size)),
+        });
+    }
+
+    let total_size_formatted = if total_bytes > 0 {
+        format_file_size(total_bytes)
+    } else {
+        String::new()
+    };
+
     OutboundPayload {
         files: slint::ModelRc::new(slint::VecModel::from(paths)),
         file_names: slint::ModelRc::new(slint::VecModel::from(names)),
+        file_details: slint::ModelRc::new(slint::VecModel::from(details)),
+        total_size_formatted: slint::SharedString::from(total_size_formatted),
     }
 }
 
@@ -219,7 +256,10 @@ async fn main() -> Result<(), anyhow::Error> {
                                     current_files.push(f);
                                 }
                             }
-                            current_files.push(slint::SharedString::from(path_str));
+                            let new_f = slint::SharedString::from(path_str);
+                            if !current_files.contains(&new_f) {
+                                current_files.push(new_f);
+                            }
                             ui.set_has_outbound_payload(true);
                             ui.set_outbound_payload(make_outbound_payload(current_files));
 
@@ -297,7 +337,10 @@ async fn main() -> Result<(), anyhow::Error> {
                                                 current_files.push(f);
                                             }
                                         }
-                                        current_files.push(slint::SharedString::from(file_str));
+                                        let new_f = slint::SharedString::from(file_str);
+                                        if !current_files.contains(&new_f) {
+                                            current_files.push(new_f);
+                                        }
                                         ui.set_has_outbound_payload(true);
                                         ui.set_outbound_payload(make_outbound_payload(current_files));
 
@@ -620,8 +663,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
 
     let ui_weak_picker = ui_weak.clone();
+    let state_for_picker = app_state.clone();
     ui.on_open_file_picker(move || {
         let ui_weak = ui_weak_picker.clone();
+        let state = state_for_picker.clone();
         tokio::spawn(async move {
             let files = rfd::AsyncFileDialog::new().pick_files().await;
             if let Some(files) = files {
@@ -633,10 +678,28 @@ async fn main() -> Result<(), anyhow::Error> {
                 if !paths.is_empty() {
                     let _ = slint::invoke_from_event_loop({
                         let ui_weak = ui_weak.clone();
+                        let state = state.clone();
                         move || {
                             if let Some(ui) = ui_weak.upgrade() {
+                                let mut current_files = Vec::new();
+                                if ui.get_has_outbound_payload() {
+                                    let payload = ui.get_outbound_payload();
+                                    for i in 0..payload.files.row_count() {
+                                        if let Some(f) = payload.files.row_data(i) {
+                                            current_files.push(f);
+                                        }
+                                    }
+                                }
+                                for p in paths {
+                                    if !current_files.contains(&p) {
+                                        current_files.push(p);
+                                    }
+                                }
                                 ui.set_has_outbound_payload(true);
-                                ui.set_outbound_payload(make_outbound_payload(paths));
+                                ui.set_outbound_payload(make_outbound_payload(current_files));
+
+                                let mut rqs_lock = state.rqs.lock().unwrap();
+                                let _ = rqs_lock.discovery(state.dch_sender.clone());
                             }
                         }
                     });

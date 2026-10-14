@@ -1,8 +1,16 @@
 import { ScrollView } from "std-widgets.slint";
 
+export struct OutboundFile {
+    name: string,
+    path: string,
+    size_formatted: string,
+}
+
 export struct OutboundPayload {
     files: [string],
     file_names: [string],
+    file_details: [OutboundFile],
+    total_size_formatted: string,
 }
 
 export struct DisplayedItem {
@@ -288,74 +296,159 @@ export component MainWindow inherits Window {
                 if root.has_outbound_payload: VerticalLayout {
                     alignment: space-between;
                     vertical-stretch: 1;
+                    spacing: 12px;
 
-                    VerticalLayout {
-                        alignment: start;
-                        spacing: 12px;
+                    // Header: "Sharing N files" + Green Size Badge
+                    HorizontalLayout {
+                        alignment: space-between;
+                        vertical-stretch: 0;
 
                         Text {
                             text: "Sharing " + root.outbound_payload.files.length + " file" + (root.outbound_payload.files.length == 1 ? "" : "s");
                             font-size: 13px;
                             color: root.dark_mode ? #94a3b8 : #475569;
+                            vertical-alignment: center;
                         }
 
-                        // File Icon square (bg-white w-32 h-32 rounded-2xl)
-                        Rectangle {
-                            width: 128px;
-                            height: 128px;
-                            background: root.dark_mode ? #1b2924 : #ffffff;
-                            border-radius: 16px;
+                        if root.outbound_payload.total_size_formatted != "": Rectangle {
+                            border-radius: 12px;
+                            background: root.dark_mode ? #14532d : #dcfce7;
 
-                            Path {
-                                width: 32px;
-                                height: 32px;
-                                viewbox-x: 0;
-                                viewbox-y: 0;
-                                viewbox-width: 24;
-                                viewbox-height: 24;
-                                x: (parent.width - self.width) / 2;
-                                y: (parent.height - self.height) / 2;
-                                fill: root.dark_mode ? #4ade80 : #16a34a;
-                                commands: "M 6 22 Q 5.175 22 4.587 21.413 T 4 20 V 4 Q 4 3.175 4.588 2.587 T 6 2 H 14 L 20 8 V 20 Q 20 20.825 19.413 21.413 T 18 22 Z M 13 9 V 4 H 6 V 20 H 18 V 9 Z";
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                padding-top: 3px;
+                                padding-bottom: 3px;
+
+                                Text {
+                                    text: root.outbound_payload.total_size_formatted;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    color: root.dark_mode ? #4ade80 : #15803d;
+                                    vertical-alignment: center;
+                                }
                             }
-                        }
-
-                        for name in root.outbound_payload.file_names: Text {
-                            text: name;
-                            font-size: 13px;
-                            color: root.dark_mode ? #f8fafc : #0f172a;
-                            overflow: elide;
-                        }
-
-                        Text {
-                            text: "Make sure both devices are unlocked, close together, and have bluetooth turned on. Device you're sharing with need Quick Share turned on and visible to you.";
-                            font-size: 12px;
-                            color: root.dark_mode ? #94a3b8 : #64748b;
-                            wrap: word-wrap;
                         }
                     }
 
-                    // Cancel button
-                    Rectangle {
-                        background: cancel_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
-                        border-radius: 12px;
-                        height: 44px;
-                        width: 90px;
-                        animate background { duration: 150ms; }
+                    // Scrollable list of file cards
+                    ScrollView {
+                        vertical-stretch: 1;
+
+                        VerticalLayout {
+                            spacing: 8px;
+
+                            for item in root.outbound_payload.file_details: Rectangle {
+                                background: root.dark_mode ? #1b2924 : #ffffff;
+                                border-radius: 14px;
+                                border-width: 1px;
+                                border-color: root.dark_mode ? #253a31 : #f1f5f9;
+
+                                VerticalLayout {
+                                    padding-left: 14px;
+                                    padding-right: 14px;
+                                    padding-top: 10px;
+                                    padding-bottom: 10px;
+                                    spacing: 4px;
+
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        spacing: 8px;
+
+                                        Text {
+                                            text: item.name;
+                                            font-size: 13px;
+                                            font-weight: 600;
+                                            color: root.dark_mode ? #f8fafc : #0f172a;
+                                            overflow: elide;
+                                            horizontal-stretch: 1;
+                                            vertical-alignment: center;
+                                        }
+
+                                        Text {
+                                            text: item.size_formatted;
+                                            font-size: 11px;
+                                            font-weight: 500;
+                                            color: root.dark_mode ? #94a3b8 : #64748b;
+                                            horizontal-alignment: right;
+                                            horizontal-stretch: 0;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+
+                                    Text {
+                                        text: item.path;
+                                        font-size: 10px;
+                                        font-family: "monospace";
+                                        color: root.dark_mode ? #64748b : #94a3b8;
+                                        overflow: elide;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Bottom helper note and buttons (Cancel + Add files)
+                    VerticalLayout {
+                        vertical-stretch: 0;
+                        spacing: 12px;
 
                         Text {
-                            text: "Cancel";
-                            font-weight: 500;
-                            font-size: 14px;
-                            color: root.dark_mode ? #f8fafc : #0f172a;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                            width: 100%;
-                            height: 100%;
+                            text: "Make sure both devices are unlocked, close together, and have bluetooth turned on. Device you're sharing with need Quick Share turned on and visible to you.";
+                            font-size: 11px;
+                            color: root.dark_mode ? #94a3b8 : #64748b;
+                            wrap: word-wrap;
                         }
 
-                        cancel_touch := TouchArea {
-                            clicked => { root.clear-sending(); }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            height: 40px;
+
+                            // Cancel button
+                            Rectangle {
+                                background: cancel_touch.has_hover ? (root.dark_mode ? #ffffff20 : #00000015) : (root.dark_mode ? #ffffff10 : #0000000a);
+                                border-radius: 12px;
+                                width: 80px;
+                                animate background { duration: 150ms; }
+
+                                Text {
+                                    text: "Cancel";
+                                    font-weight: 500;
+                                    font-size: 13px;
+                                    color: root.dark_mode ? #f8fafc : #0f172a;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    width: 100%;
+                                    height: 100%;
+                                }
+
+                                cancel_touch := TouchArea {
+                                    clicked => { root.clear-sending(); }
+                                }
+                            }
+
+                            // + Add files button
+                            Rectangle {
+                                background: add_touch.has_hover ? (root.dark_mode ? #22c55e30 : #dcfce7) : (root.dark_mode ? #22c55e20 : #e2fbe8);
+                                border-radius: 12px;
+                                horizontal-stretch: 1;
+                                animate background { duration: 150ms; }
+
+                                Text {
+                                    text: "+ Add files";
+                                    font-weight: 600;
+                                    font-size: 13px;
+                                    color: root.dark_mode ? #4ade80 : #16a34a;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    width: 100%;
+                                    height: 100%;
+                                }
+
+                                add_touch := TouchArea {
+                                    clicked => { root.open-file-picker(); }
+                                }
+                            }
                         }
                     }
                 }
