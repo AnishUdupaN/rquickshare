@@ -66,10 +66,6 @@ pub fn init_default() {
     let _ = get_settings(); // Just to load/create if needed. Or we can force save.
 }
 
-pub fn get_realclose() -> bool {
-    get_settings().realclose
-}
-
 pub fn get_port() -> Option<u32> {
     get_settings().port
 }
@@ -92,8 +88,4 @@ pub fn get_download_path() -> Option<PathBuf> {
 
 pub fn get_logging_level() -> Option<String> {
     get_settings().debug_level
-}
-
-pub fn get_startminimized() -> bool {
-    get_settings().startminimized
 }

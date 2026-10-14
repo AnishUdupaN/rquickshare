@@ -181,18 +181,6 @@ find $HOME -name ".settings.json"
 
 By default the port is random (the OS will decide).
 
-### The app opens but I just get a blank window or cannot run it.
-
-This happens for some users running Linux + NVIDIA cards.
-
-The workaround is to start RQuickShare with an env variable defined as follows:
-
-```bash
-env WEBKIT_DISABLE_COMPOSITING_MODE=1 rquickshare
-```
-
-Alternatively, you may try the `legacy` variant.
-
 WIP Notes
 --------------------------
 

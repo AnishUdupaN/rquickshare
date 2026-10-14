@@ -1,7 +1,7 @@
 The project is divided into two parts:
 
 - **core_lib:** This is a Rust library that encompasses all the logic necessary for discovering, connecting to, and transferring files to QuickShare-compatible clients.
-- **app/main:** A Tauri application that utilizes core_lib to handle incoming requests and initiate outgoing ones.
+- **app/main:** A native Rust application (using Slint for the UI) that utilizes core_lib to handle incoming requests and initiate outgoing ones.
 
 How to build
 --------------------------
@@ -14,38 +14,24 @@ Install `protobuf-compiler` system package, and then simply run `cargo build` or
 
 ### app/main
 
-The app/main is developed as a Tauri application. For package management, pnpm is recommended (though npm and others may also work, pnpm is preferred for this project).
+The app/main is developed as a native Rust + Slint application.
 
-(all commands are run inside the `app/main` folder)
+(all commands are run inside the `app/main/src-tauri` folder)
 
-First, install the necessary dependencies:
+Building the app/main on Linux requires some system dependencies:
 
 ```
-pnpm install
+sudo apt-get install libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev protobuf-compiler
 ```
 
 - To run the debug version:
 
 ```
-pnpm dev
+cargo run
 ```
 
-- To build a release package (.deb & .AppImage & .rpm & .dmg (only on macos)):
+- To build a release package:
 
 ```
-pnpm build
+cargo build --release
 ```
-
-For more detailed information on building the app/main and understanding any potential limitations, it’s advised to consult the [Tauri documentation](https://v2.tauri.app/start).
-
-### app/main
-
-Everything is the same as the app/main one, except the output of the build :)
-
-- To build a release package (.deb & .AppImage):
-
-```
-pnpm build
-```
-
-For more detailed information on building the app/main and understanding any potential limitations, it’s advised to consult the [Tauri documentation](https://tauri.app/v1/guides/building/linux).

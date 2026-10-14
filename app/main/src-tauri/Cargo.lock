@@ -4625,7 +4625,7 @@ dependencies = [
  "rand 0.9.0",
  "serde",
  "sha2",
- "sys_metrics 0.2.7 (git+https://github.com/Martichou/sys_metrics)",
+ "sys_metrics",
  "tokio",
  "tokio-util",
  "tracing-subscriber",
@@ -4652,8 +4652,6 @@ dependencies = [
  "serde_json",
  "slint",
  "slint-build",
- "sys_metrics 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "time",
  "tokio",
  "tokio-util",
 ]
@@ -5311,21 +5309,6 @@ dependencies = [
 [[package]]
 name = "sys_metrics"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9b266b80f59f86e2e1e0a4938e316e32c3730d94a749f236305152279f77484"
-dependencies = [
- "core-foundation-sys",
- "glob",
- "io-kit-sys",
- "lazy_static",
- "libc",
- "mach",
- "serde",
-]
-
-[[package]]
-name = "sys_metrics"
-version = "0.2.7"
 source = "git+https://github.com/Martichou/sys_metrics#e5b324a17d1724bd97923a173c3535cc06a44b0c"
 dependencies = [
  "core-foundation-sys",
@@ -5456,12 +5439,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35e7868883861bd0e56d9ac6efcaaca0d6d5d82a2a7ec8209ff492c07cf37b21"
 dependencies = [
  "deranged",
- "itoa",
  "num-conv",
  "powerfmt",
  "serde",
  "time-core",
- "time-macros",
 ]
 
 [[package]]
@@ -5469,16 +5450,6 @@ name = "time-core"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef927ca75afb808a4d64dd374f00a2adf8d0fcff8e7b184af886c3c87ec4a3f3"
-
-[[package]]
-name = "time-macros"
-version = "0.2.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2834e6017e3e5e4b9834939793b282bc03b37a3336245fa820e35e233e2a85de"
-dependencies = [
- "num-conv",
- "time-core",
-]
 
 [[package]]
 name = "tiny-skia"
